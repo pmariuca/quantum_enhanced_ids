@@ -1,0 +1,23 @@
+# Python
+daemon/venv/
+__pycache__/
+*.pyc
+
+# Build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.symvers
+modules.order
+Module.symvers
+
+# CMake
+build/
+CMakeFiles/
+
+# VSCode
+.vscode/
+
+# Logs
+*.log
