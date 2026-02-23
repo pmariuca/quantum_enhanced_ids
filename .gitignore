@@ -4,10 +4,15 @@ __pycache__/
 *.pyc
 
 # Build artifacts
+*.cmd
 *.o
+*.o.cmd
 *.ko
+*.ko.cmd
 *.mod
 *.mod.c
+*.mod.cmd
+*.mod.o.cmd
 *.symvers
 modules.order
 Module.symvers
