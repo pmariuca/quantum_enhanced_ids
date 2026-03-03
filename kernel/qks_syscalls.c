@@ -285,7 +285,7 @@ static int handler_pre_setns(struct kprobe *p, struct pt_regs *regs)
 }
 
 // ---- Module init/exit: register all hooks ----
-static int __init qks_syscalls_init(void)
+int qks_syscalls_init(void)
 {
     int ret;
 
@@ -332,15 +332,14 @@ static int __init qks_syscalls_init(void)
     if ((ret = register_kprobe(&kp_unshare)) != 0) goto fail;
     if ((ret = register_kprobe(&kp_setns))   != 0) goto fail;
 
-    pr_info("[QKS] Exec + Syscall sensors loaded.\n");
     return 0;
 
 fail:
-    pr_err("[QKS] Failed to register a syscall kprobe: %d\n", ret);
+    qks_log("[QKS] Failed to register a syscall kprobe: %d\n", ret);
     return ret;
 }
 
-static void __exit qks_syscalls_exit(void)
+void qks_syscalls_exit(void)
 {
     // Unregister everything
     unregister_kprobe(&kp_execve);
@@ -360,9 +359,4 @@ static void __exit qks_syscalls_exit(void)
     unregister_kprobe(&kp_clone3);
     unregister_kprobe(&kp_unshare);
     unregister_kprobe(&kp_setns);
-
-    pr_info("[QKS] Exec + Syscall sensors unloaded.\n");
 }
-
-module_init(qks_syscalls_init);
-module_exit(qks_syscalls_exit);

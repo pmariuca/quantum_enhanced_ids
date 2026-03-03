@@ -235,7 +235,7 @@ static unsigned int qks_dns_hook(void *priv,
     return NF_ACCEPT;
 }
 
-static int __init qks_netfilter_init(void)
+int qks_netfilter_init(void)
 {
     qks_nf_ops[0].hook     = qks_nf_hook;   // TCP SYN sensor
     qks_nf_ops[0].pf       = NFPROTO_IPV4;
@@ -249,15 +249,10 @@ static int __init qks_netfilter_init(void)
 
 
     nf_register_net_hooks(&init_net, qks_nf_ops, 2);
-    pr_info("[QKS] Packet PID/UID/EXE monitor loaded.\n");
     return 0;
 }
 
-static void __exit qks_netfilter_exit(void)
+void qks_netfilter_exit(void)
 {
     nf_unregister_net_hooks(&init_net, qks_nf_ops, 2);
-    pr_info("[QKS] Packet PID/UID/EXE monitor unloaded.\n");
 }
-
-module_init(qks_netfilter_init);
-module_exit(qks_netfilter_exit);

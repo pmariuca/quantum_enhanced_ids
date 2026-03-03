@@ -20,9 +20,14 @@ Module.symvers
 # CMake
 build/
 CMakeFiles/
+daemon/qks_daemon
 
 # VSCode
 .vscode/
 
 # Logs
 *.log
+
+
+# Keys
+*.bin
