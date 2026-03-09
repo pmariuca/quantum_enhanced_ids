@@ -365,9 +365,6 @@ static void *worker_thread_main(void *arg)
 
         const char *pol_reason = NULL;
         enum qks_policy_result pol = qks_policy_eval(ev, &pol_reason);
-        
-        strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
-        v.reason[sizeof(v.reason)-1] = '\0';
 
 
         printf("[DAEMON] policy = %s (reason=%s)\n",
@@ -381,6 +378,9 @@ static void *worker_thread_main(void *arg)
             struct qks_verdict_msg v = {0};
             v.event_id = ev->event_id;
             v.verdict  = QKS_DENY;
+
+            strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
+
             send_verdict(ctx->sk, ctx->fam_id, &v);
             free(ev);
             continue;
@@ -402,6 +402,9 @@ static void *worker_thread_main(void *arg)
         v.daemon_ts_sec  = now.tv_sec;
         v.daemon_ts_nsec = now.tv_nsec;
 
+        strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
+        v.reason[sizeof(v.reason)-1] = '\0';
+
         size_t sig_len = 0;
 
         if (!sign_hash(hash, v.signature, &sig_len)) {
@@ -409,6 +412,8 @@ static void *worker_thread_main(void *arg)
             v.verdict = QKS_DENY;
             v.signature_len = 0;
         } else {
+            int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(
+                        v.signature, sig_len, hash, 32, g_pk);
             if (rc == 0)
                 v.signature_len = sig_len;
             else {

@@ -86,7 +86,7 @@ static struct qks_pending *qks_take_pending(u64 id)
 }
 
 /* Forward declaration so compiler knows signature */
-void qks_apply_verdict(const struct qks_event_msg *ev, u8 verdict);
+void qks_apply_verdict(const struct qks_event_msg *ev, u8 verdict, const char *reason);
 
 /* -------------------- Netlink Policy -------------------- */
 static const struct nla_policy qks_policy[QKS_ATTR_MAX + 1] = {
@@ -133,7 +133,7 @@ static int qks_cmd_verdict(struct sk_buff *skb, struct genl_info *info)
     ok = qks_verify_signature(ev, v->hash, v->signature, v->signature_len);
     if (!ok) {
         qks_log("Signature/hash INVALID for id=%llu -> DENY", ev->event_id);
-        qks_apply_verdict(ev, QKS_DENY);
+        qks_apply_verdict(ev, QKS_DENY, "invalid_signature");
         kfree(ev);
         kfree(p);
         return 0;
@@ -209,7 +209,7 @@ static void qks_verdict_timeout(struct timer_list *t)
 
     qks_log("FALLBACK: verdict timeout -> DENY id=%llu", p->id);
     qks_dump_event(p->ev);
-    qks_apply_verdict(p->ev, QKS_DENY);
+    qks_apply_verdict(p->ev, QKS_DENY, "timeout");
 
     kfree(p->ev);
     kfree(p);
@@ -248,7 +248,7 @@ int qks_send_msg(struct qks_event_msg *msg)
     if (ret == -ESRCH) { /* no listeners */
         qks_log("FALLBACK: no listeners -> immediate DENY id=%llu", msg->event_id);
         qks_dump_event(msg);
-        qks_apply_verdict(msg, QKS_DENY);
+        qks_apply_verdict(msg, QKS_DENY, "no_listeners");
         return 0;
     }
     if (ret)

@@ -17,6 +17,7 @@
 #include "qks_message.h"
 #include "qks_ids.h"
 #include "qks_enforce.h"
+#include "qks_log.h"
 
 MODULE_LICENSE("GPL");
 
@@ -125,9 +126,9 @@ static unsigned int qks_nf_hook(void *priv,
     u16 dstp = ntohs(tcph->dest);
 
     u32 dst_ip_host = ntohl(iph->daddr);
-    if (qks_drop_should_block(current->pid, ntohl(iph->daddr), dst_port_host, iph->protocol)) {
+    if (qks_drop_should_block(current->pid, ntohl(iph->daddr), dstp, iph->protocol)) {
         qks_log("NF_DROP (drop-list): pid=%u dst=%pI4:%u proto=%u",
-                current->pid, &iph->daddr, dst_port_host, iph->protocol);
+                current->pid, &iph->daddr, dstp, iph->protocol);
         return NF_DROP;
     }
 
@@ -189,6 +190,13 @@ static unsigned int qks_dns_hook(void *priv,
     u16 dstp = ntohs(udph->dest);
     if (dstp != 53)
         return NF_ACCEPT; // only DNS queries
+
+    
+    if (qks_drop_should_block(current->pid, ntohl(iph->daddr), dstp, IPPROTO_UDP)) {
+        pr_info("QKS NF_DROP: pid=%u DNS dst=%pI4:%u proto=%u (drop-list)\n",
+                current->pid, &iph->daddr, dstp, IPPROTO_UDP);
+        return NF_DROP;
+    }
 
     // Extract DNS payload
     unsigned char *dns = (unsigned char *)udph + sizeof(struct udphdr);

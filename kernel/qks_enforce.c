@@ -11,6 +11,7 @@
 #include <linux/jiffies.h>
 #include <linux/time.h>
 #include <linux/byteorder/generic.h>
+#include <linux/in.h>
 
 #include "qks_message.h"
 #include "qks_verdict.h"
@@ -162,7 +163,7 @@ EXPORT_SYMBOL_GPL(qks_drop_should_block);
 
 /* ===================== Verdict enforcement ===================== */
 
-static void qks_enforce_exec_deny(const struct qks_event_msg *ev)
+static void qks_enforce_exec_deny(const struct qks_event_msg *ev, const char *reason)
 {
     int rc = qks_kill_tgid(ev->pid, SIGKILL);
     qks_log("EXEC DENY: id=%llu pid=%u reason='%s' path='%s' kill_rc=%d",
@@ -170,14 +171,14 @@ static void qks_enforce_exec_deny(const struct qks_event_msg *ev)
 
 }
 
-static void qks_enforce_syscall_deny(const struct qks_event_msg *ev)
+static void qks_enforce_syscall_deny(const struct qks_event_msg *ev, const char *reason)
 {
     int rc = qks_kill_tgid(ev->pid, SIGKILL);
     qks_log("SYSCALL DENY: id=%llu pid=%u reason='%s' subtype=%u kill_rc=%d",
             (u64)ev->event_id, ev->pid, reason, ev->sc_subtype, rc);
 }
 
-static void qks_enforce_packet_deny(const struct qks_event_msg *ev)
+static void qks_enforce_packet_deny(const struct qks_event_msg *ev, const char *reason)
 {
     /* Store in drop-list for near-future flows (e.g., 30s) */
     __be32 dip_be = htonl(ev->packet_dst_ip);
@@ -185,10 +186,10 @@ static void qks_enforce_packet_deny(const struct qks_event_msg *ev)
 
     qks_log("PACKET DENY: id=%llu pid=%u reason='%s' proto=%u dst_ip=%pI4 dst_port=%u (ttl=30s)",
             (u64)ev->event_id, ev->pkt_pid, reason,
-            ev->packet_protocol, &dip_be, ev->packet_dst_port
+            ev->packet_protocol, &dip_be, ev->packet_dst_port);
 }
 
-static void qks_enforce_dns_deny(const struct qks_event_msg *ev)
+static void qks_enforce_dns_deny(const struct qks_event_msg *ev, const char *reason)
 {
     /* This is the outbound DNS query—add temporary block for UDP/53 from this pid */
     qks_drop_add(ev->pkt_pid, ev->packet_dst_ip, 53, IPPROTO_UDP, 30000);
@@ -212,19 +213,19 @@ void qks_apply_verdict(const struct qks_event_msg *ev, u8 verdict, const char *r
     /* DENY */
     switch (ev->event_type) {
     case QKS_EVENT_EXEC:
-        qks_enforce_exec_deny(ev);
+        qks_enforce_exec_deny(ev, reason);
         break;
 
     case QKS_EVENT_SYSCALL:
-        qks_enforce_syscall_deny(ev);
+        qks_enforce_syscall_deny(ev, reason);
         break;
 
     case QKS_EVENT_PACKET:
-        qks_enforce_packet_deny(ev);
+        qks_enforce_packet_deny(ev, reason);
         break;
 
     case QKS_EVENT_DNS:
-        qks_enforce_dns_deny(ev);
+        qks_enforce_dns_deny(ev, reason);
         break;
 
     default:
