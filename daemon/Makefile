@@ -29,12 +29,16 @@ PQ_SRCS := \
 RNG_SRC := randombytes.c \
   queue.c
 
+POLICY_SRCS := policy.c cJSON.c
+
+
 .PHONY: all clean
 
 all: qks_daemon
 
-qks_daemon: qks_daemon.c $(PQ_SRCS) $(RNG_SRC)
+qks_daemon: qks_daemon.c $(PQ_SRCS) $(RNG_SRC) $(POLICY_SRCS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
 
 clean:
 	rm -f qks_daemon *.o

@@ -13,6 +13,7 @@ qks-objs := \
 	qks_main.o \
 	qks_pqc_glue.o \
 	qks_ids.o \
+	qks_enforce.o \
     third-party/pqclean/ml-dsa-44/clean/keccak_kern.o \
     third-party/pqclean/ml-dsa-44/clean/shake_inc_kern.o \
     third-party/pqclean/ml-dsa-44/clean/stream_kern.o \

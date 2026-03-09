@@ -139,7 +139,7 @@ static int qks_cmd_verdict(struct sk_buff *skb, struct genl_info *info)
         return 0;
     }
 
-    qks_apply_verdict(ev, v->verdict ? QKS_ALLOW : QKS_DENY);
+    qks_apply_verdict(ev, v->verdict, v->reason);
 
     kfree(ev);
     kfree(p);
@@ -195,14 +195,6 @@ void qks_netlink_exit(void)
 {
     genl_unregister_family(&qks_family);
 }
-
-/* -------------------- Weak Verbict Hook -------------------- */
-__weak void qks_apply_verdict(const struct qks_event_msg *ev, u8 verdict)
-{
-    qks_log("(weak) verdict=%u for id=%u\n",
-            verdict, ev ? ev->event_id : 0);
-}
-EXPORT_SYMBOL_GPL(qks_apply_verdict);
 
 /* -------------------- Daemon Fallback -------------------- */
 static void qks_verdict_timeout(struct timer_list *t)

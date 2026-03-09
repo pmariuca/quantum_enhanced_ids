@@ -8,10 +8,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <netdb.h>
-
 #include <openssl/sha.h>
 
-#include "pqclean/ml-dsa-44/clean/api.h"
 
 #include <netlink/netlink.h>
 #include <netlink/msg.h>
@@ -22,12 +20,14 @@
 #include <netinet/tcp.h>   // TCP flags
 #include <netinet/ip.h>
 
+#include "pqclean/ml-dsa-44/clean/api.h"
 #include "qks_message_user.h"
 #include "qks_verdict_user.h"
 #include "qks_consts_user.h"
 #include "../kernel/qks_genl.h"
 #include "queue.h"
 #include "syscalls.h"
+#include "policy.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -40,6 +40,20 @@ static volatile bool g_running = true;
 
 struct qks_queue g_queue;
 static pthread_t g_worker;
+
+static void qks_now_iso8601(char *buf, size_t len) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    struct tm tm;
+    gmtime_r(&ts.tv_sec, &tm);
+
+    snprintf(buf, len,
+             "%04d-%02d-%02dT%02d:%02d:%02d.%09ldZ",
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             tm.tm_hour, tm.tm_min, tm.tm_sec,
+             ts.tv_nsec);
+}
 
 // Private key data
 static uint8_t qks_sk[5000];
@@ -72,7 +86,94 @@ static void on_sigint(int signo) {
     g_running = false;
 }
 
+// ------------------------- PRINTING -------------------------
+static const char* evt_type_str(uint8_t t) {
+    switch (t) {
+        case QKS_EVENT_EXEC:    return "EXEC";
+        case QKS_EVENT_SYSCALL: return "SYSCALL";
+        case QKS_EVENT_PACKET:  return "PACKET";
+        case QKS_EVENT_DNS:     return "DNS";
+        default:                return "UNKNOWN";
+    }
+}
+
 // ------------------------- HELPERS -------------------------
+
+static void qks_write_event_jsonl(const struct qks_event_msg *ev,
+                                  enum qks_policy_result pol,
+                                  const char *reason)
+{
+    FILE *f = fopen("policy/events.jsonl", "a");
+    if (!f) {
+        fprintf(stderr, "[DAEMON] ERROR: cannot open events.jsonl for append\n");
+        return;
+    }
+
+    char ts[64];
+    qks_now_iso8601(ts, sizeof(ts));
+
+    // start object
+    fprintf(f, "{");
+
+    // top-level fields
+    fprintf(f, "\"ts_daemon\":\"%s\",", ts);
+    fprintf(f, "\"event_id\":%lu,", ev->event_id);
+    fprintf(f, "\"type\":\"%s\",", evt_type_str(ev->event_type));
+    fprintf(f, "\"policy\":\"%s\",",
+             pol == QKS_POLICY_ALLOW ? "ALLOW" :
+             pol == QKS_POLICY_DENY  ? "DENY"  : "UNKNOWN");
+    fprintf(f, "\"reason\":\"%s\",", reason ? reason : "none");
+
+    // structured event fields
+    if (ev->event_type == QKS_EVENT_EXEC) {
+        fprintf(f, "\"exec\":{");
+        fprintf(f, "\"path\":\"%s\"", ev->exec_path);
+        fprintf(f, "}");
+    }
+
+    if (ev->event_type == QKS_EVENT_PACKET) {
+        char sip[INET_ADDRSTRLEN], dip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &ev->packet_src_ip, sip, sizeof(sip));
+        inet_ntop(AF_INET, &ev->packet_dst_ip, dip, sizeof(dip));
+
+        fprintf(f, "\"packet\":{");
+        fprintf(f, "\"src_ip\":\"%s\",", sip);
+        fprintf(f, "\"src_port\":%u,", ev->packet_src_port);
+        fprintf(f, "\"dst_ip\":\"%s\",", dip);
+        fprintf(f, "\"dst_port\":%u,", ev->packet_dst_port);
+        fprintf(f, "\"protocol\":%u,", ev->packet_protocol);
+        fprintf(f, "\"len\":%u", ev->packet_len);
+        fprintf(f, "}");
+    }
+
+    if (ev->event_type == QKS_EVENT_DNS) {
+        char sip[INET_ADDRSTRLEN], dip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &ev->packet_src_ip, sip, sizeof(sip));
+        inet_ntop(AF_INET, &ev->packet_dst_ip, dip, sizeof(dip));
+
+        fprintf(f, "\"dns\":{");
+        fprintf(f, "\"src_ip\":\"%s\",", sip);
+        fprintf(f, "\"dst_ip\":\"%s\",", dip);
+        fprintf(f, "\"qname\":\"%s\",", ev->dns_qname);
+        fprintf(f, "\"qtype\":%u", ev->dns_qtype);
+        fprintf(f, "}");
+    }
+
+    if (ev->event_type == QKS_EVENT_SYSCALL) {
+        fprintf(f, "\"syscall\":{");
+        fprintf(f, "\"nr\":%u,", ev->sc_nr);
+        fprintf(f, "\"subtype\":%u,", ev->sc_subtype);
+        fprintf(f, "\"flags\":\"0x%lx\",", ev->sc_flags);
+        fprintf(f, "\"prot\":\"0x%x\"", ev->sc_prot);
+        fprintf(f, "}");
+    }
+
+    // end object
+    fprintf(f, "}\n");
+
+    fclose(f);
+}
+
 static bool load_private_key(void) {
     FILE *f = fopen("qks_sk.bin", "rb");
     if (!f) {
@@ -190,17 +291,6 @@ static void normalize_packet(const struct qks_event_msg *ev) {
     printf("        pkt_exec_path = %s\n", ev->pkt_exec_path);
 }
 
-// ------------------------- PRINTING -------------------------
-static const char* evt_type_str(uint8_t t) {
-    switch (t) {
-        case QKS_EVENT_EXEC:    return "EXEC";
-        case QKS_EVENT_SYSCALL: return "SYSCALL";
-        case QKS_EVENT_PACKET:  return "PACKET";
-        case QKS_EVENT_DNS:     return "DNS";
-        default:                return "UNKNOWN";
-    }
-}
-
 // ------------------------- CONTEXT FOR CALLBACK -------------------------
 struct qks_ctx {
     struct nl_sock *sk;
@@ -254,10 +344,6 @@ static void *worker_thread_main(void *arg)
     while (g_running) {
         struct qks_event_msg *ev = queue_pop(&g_queue);
 
-        printf("[DAEMON] EVENT id=%lu type=%s\n",
-            ev->event_id, evt_type_str(ev->event_type));
-
-
         if (ev->event_type == QKS_EVENT_SYSCALL) {
             printf("SYSCALL: %s (%u)\n",
                 syscall_name_or_unknown(ev->sc_nr),
@@ -276,6 +362,30 @@ static void *worker_thread_main(void *arg)
         if (ev->event_type == QKS_EVENT_PACKET) {
             normalize_packet(ev);
         }
+
+        const char *pol_reason = NULL;
+        enum qks_policy_result pol = qks_policy_eval(ev, &pol_reason);
+        
+        strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
+        v.reason[sizeof(v.reason)-1] = '\0';
+
+
+        printf("[DAEMON] policy = %s (reason=%s)\n",
+            pol == QKS_POLICY_ALLOW ? "ALLOW" :
+            pol == QKS_POLICY_DENY  ? "DENY"  : "UNKNOWN",
+            pol_reason ? pol_reason : "n/a");
+
+        qks_write_event_jsonl(ev, pol, pol_reason);
+
+        if (pol == QKS_POLICY_DENY) {
+            struct qks_verdict_msg v = {0};
+            v.event_id = ev->event_id;
+            v.verdict  = QKS_DENY;
+            send_verdict(ctx->sk, ctx->fam_id, &v);
+            free(ev);
+            continue;
+        }
+
 
         // ---- Hash ----
         uint8_t hash[32];
@@ -299,11 +409,6 @@ static void *worker_thread_main(void *arg)
             v.verdict = QKS_DENY;
             v.signature_len = 0;
         } else {
-            int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(
-                        v.signature, sig_len, hash, 32, g_pk);
-            printf("[DAEMON] verify = %s for %lu\n",
-                   rc == 0 ? "OK" : "FAIL", ev->event_id);
-
             if (rc == 0)
                 v.signature_len = sig_len;
             else {
@@ -327,7 +432,11 @@ int main(void) {
         return 1;
 
     if (!load_public_key())  return 1;
-    printf("[DAEMON] signing_variant = non-ctx\n");
+    
+    if (!qks_policy_load("policy/policy.json")) {
+        fprintf(stderr, "[DAEMON] Failed to load policy.json\n");
+        return 1;
+    }
 
     struct nl_sock *sk = nl_socket_alloc();
     if (!sk) {

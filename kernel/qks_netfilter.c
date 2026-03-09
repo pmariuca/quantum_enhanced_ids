@@ -16,6 +16,7 @@
 
 #include "qks_message.h"
 #include "qks_ids.h"
+#include "qks_enforce.h"
 
 MODULE_LICENSE("GPL");
 
@@ -122,6 +123,14 @@ static unsigned int qks_nf_hook(void *priv,
 
     u16 srcp = ntohs(tcph->source);
     u16 dstp = ntohs(tcph->dest);
+
+    u32 dst_ip_host = ntohl(iph->daddr);
+    if (qks_drop_should_block(current->pid, ntohl(iph->daddr), dst_port_host, iph->protocol)) {
+        qks_log("NF_DROP (drop-list): pid=%u dst=%pI4:%u proto=%u",
+                current->pid, &iph->daddr, dst_port_host, iph->protocol);
+        return NF_DROP;
+    }
+
 
     // suspicious ports only
     if (!is_suspicious_port(srcp) && !is_suspicious_port(dstp))
