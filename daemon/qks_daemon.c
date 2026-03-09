@@ -10,7 +10,8 @@
 #include <netdb.h>
 
 #include <openssl/sha.h>
-#include <oqs/oqs.h>
+
+#include "pqclean/ml-dsa-44/clean/api.h"
 
 #include <netlink/netlink.h>
 #include <netlink/msg.h>
@@ -23,11 +24,10 @@
 #include "qks_consts_user.h"
 #include "../kernel/qks_genl.h"
 
-#ifndef OQS_SIG_alg_ml_dsa_44
-// fallback for older liboqs that still uses Dilithium-3 name
-#define OQS_SIG_alg_ml_dsa_44 OQS_SIG_alg_dilithium_3
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#endif
 
 // Globals
 static volatile bool g_running = true;
@@ -35,6 +35,27 @@ static volatile bool g_running = true;
 // Private key data
 static uint8_t qks_sk[5000];
 static size_t  qks_sk_len = 0;
+
+static uint8_t g_pk[1312];
+static size_t  g_pk_len = 0;
+
+static bool load_public_key(void) {
+    FILE *f = fopen("qks_pk.bin", "rb");
+    if (!f) {
+        fprintf(stderr, "[DAEMON] ERROR: cannot open qks_pk.bin\n");
+        return false;
+    }
+    g_pk_len = fread(g_pk, 1, sizeof(g_pk), f);
+    fclose(f);
+    if (g_pk_len != 1312) {
+        fprintf(stderr, "[DAEMON] ERROR: bad public key length %zu (want 1312)\n", g_pk_len);
+        return false;
+    }
+    printf("[DAEMON] pk[0..15]=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+           g_pk[0],g_pk[1],g_pk[2],g_pk[3],g_pk[4],g_pk[5],g_pk[6],g_pk[7],
+           g_pk[8],g_pk[9],g_pk[10],g_pk[11],g_pk[12],g_pk[13],g_pk[14],g_pk[15]);
+    return true;
+}
 
 // ------------------------- SIGNAL -------------------------
 static void on_sigint(int signo) {
@@ -57,7 +78,7 @@ static bool load_private_key(void) {
         return false;
     }
 
-    printf("[DAEMON] Loaded ML‑DSA‑65 private key (%zu bytes)\n", qks_sk_len);
+    printf("[DAEMON] Loaded ML‑DSA‑44 private key (%zu bytes)\n", qks_sk_len);
     return true;
 }
 
@@ -65,25 +86,22 @@ static void hash_event(const struct qks_event_msg *m, uint8_t out[32]) {
     SHA256((const uint8_t *)m, sizeof(*m), out);
 }
 
-static bool sign_hash(const uint8_t hash[32], uint8_t sig_out[3366], size_t *sig_len) {
-    OQS_SIG *sig = OQS_SIG_new(OQS_SIG_alg_ml_dsa_44);
-    if (!sig) {
-        fprintf(stderr, "[DAEMON] ERROR: OQS_SIG_new failed\n");
-        return false;
-    }
 
-    OQS_STATUS rc = OQS_SIG_sign(
-        sig,
-        sig_out,
-        sig_len,
-        hash,
-        32,
-        qks_sk
-    );
+static bool sign_hash(const uint8_t hash[32], uint8_t sig_out[2420], size_t *sig_len)
+{
+    int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_signature(
+                    sig_out, sig_len,
+                    hash, 32,
+                    qks_sk);
+    
+    if (rc != 0) {
+            fprintf(stderr, "[DAEMON] PQClean sign (ctx) FAILED\n");
+            return false;
+        }
 
-    OQS_SIG_free(sig);
-    return rc == OQS_SUCCESS;
+    return true;
 }
+
 
 // ------------------------- PRINTING -------------------------
 static const char* evt_type_str(uint8_t t) {
@@ -137,20 +155,37 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
     uint8_t hash[32];
     hash_event(m, hash);
 
+
     // ===== Sign =====
     struct qks_verdict_msg v = {0};
     v.event_id = m->event_id;
     v.verdict  = QKS_ALLOW;  // Default allow (add detection logic later)
     memcpy(v.hash, hash, 32);
 
+    
     size_t sig_len = 0;
+
     if (!sign_hash(hash, v.signature, &sig_len)) {
         fprintf(stderr, "[DAEMON] Sign failed for event_id=%u → DENY\n", m->event_id);
         v.verdict = QKS_DENY;
         v.signature_len = 0;
     } else {
-        v.signature_len = (uint32_t)sig_len;
+        // Self-verify with non-ctx API using the PUBLIC key and the actual signature length
+        int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(
+                    v.signature, sig_len,
+                    hash, 32,
+                    g_pk);
+        printf("[DAEMON] self-verify non-ctx = %s for id=%u\n", rc==0 ? "OK" : "FAIL", m->event_id);
+
+        if (rc != 0) {
+            // Something is still off; do not send broken sig to kernel
+            v.verdict = QKS_DENY;
+            v.signature_len = 0;
+        } else {
+            v.signature_len = (uint32_t)sig_len; // should be 2420
+        }
     }
+
 
     // ===== Send verdict back to kernel =====
     struct nl_msg *reply = nlmsg_alloc();
@@ -180,6 +215,9 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
 int main(void) {
     if (!load_private_key())
         return 1;
+
+    if (!load_public_key())  return 1;
+    printf("[DAEMON] signing_variant = non-ctx\n");
 
     struct nl_sock *sk = nl_socket_alloc();
     if (!sk) {

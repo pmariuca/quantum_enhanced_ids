@@ -3,7 +3,7 @@
 #include <linux/types.h>
 #include "qks_message.h"
 
-#define QKS_SIG_LEN        3309
+#define QKS_SIG_LEN        2420
 #define QKS_EVENT_HASH_LEN 32
 
 int qks_hash_event(const struct qks_event_msg *ev,

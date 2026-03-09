@@ -14,6 +14,7 @@
 #include <linux/atomic.h>
 #include <asm/unistd.h>
 
+#include "qks_log.h"
 #include "qks_message.h"
 
 MODULE_LICENSE("GPL");

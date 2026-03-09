@@ -1,7 +1,7 @@
 #pragma once
 #include <linux/types.h>
 
-#define QKS_SIG_LEN        3366
+#define QKS_SIG_LEN        2420
 #define QKS_HASH_LEN       32
 
 struct qks_verdict_msg {

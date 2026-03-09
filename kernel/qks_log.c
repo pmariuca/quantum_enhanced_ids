@@ -8,17 +8,26 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/printk.h>
+#include <linux/errno.h>
+#include <linux/limits.h>
+#include <linux/string.h>
+#include <linux/stddef.h>
+#include <linux/types.h>
+#include <linux/init.h>
+#include <linux/printk.h>
+#include <linux/moduleparam.h>
+#include <linux/stdarg.h>
 
 #include "qks_log.h"
 
-#define QKS_LOG_BUF_SIZE   (64 * 1024)   /* 64 KB ring buffer */
+#define QKS_LOG_BUF_SIZE   (16 * 1024)   /* 64 KB ring buffer */
 #define QKS_LOG_LINE_MAX   512           /* max per-log message */
 
 static char *qks_logbuf;
 static size_t qks_log_head;
 static DEFINE_SPINLOCK(qks_log_lock);
 
-/* Write formatted log line into ring buffer */
+/* Write formatted log line into ring buffer AND printk */
 void qks_log(const char *fmt, ...)
 {
     char tmp[QKS_LOG_LINE_MAX];
@@ -33,21 +42,19 @@ void qks_log(const char *fmt, ...)
     if (len <= 0)
         return;
 
-    /* Write into ring buffer */
+    /* Print immediately to kernel log (live) */
+    printk(KERN_INFO "[QKS] %s", tmp);
+
+    /* Also store in ring buffer */
     spin_lock_irqsave(&qks_log_lock, flags);
 
-    /* If message is larger than buffer, discard */
-    if (len >= QKS_LOG_BUF_SIZE) {
-        spin_unlock_irqrestore(&qks_log_lock, flags);
-        return;
+    if (len < QKS_LOG_BUF_SIZE) {
+        if (qks_log_head + len >= QKS_LOG_BUF_SIZE)
+            qks_log_head = 0;
+
+        memcpy(qks_logbuf + qks_log_head, tmp, len);
+        qks_log_head += len;
     }
-
-    /* If wrap needed */
-    if (qks_log_head + len >= QKS_LOG_BUF_SIZE)
-        qks_log_head = 0;
-
-    memcpy(qks_logbuf + qks_log_head, tmp, len);
-    qks_log_head += len;
 
     spin_unlock_irqrestore(&qks_log_lock, flags);
 }
@@ -82,28 +89,36 @@ static const struct proc_ops qks_log_proc_ops = {
     .proc_release = single_release,
 };
 
-/* Init */
+static struct proc_dir_entry *qks_proc_dir;
+
+/* Init log system */
 int qks_log_init(void)
 {
     qks_logbuf = vzalloc(QKS_LOG_BUF_SIZE);
     if (!qks_logbuf)
         return -ENOMEM;
 
-    if (!proc_create("qks/log", 0444, NULL, &qks_log_proc_ops)) {
+    qks_proc_dir = proc_mkdir("qks", NULL);    // create /proc/qks
+    if (!qks_proc_dir) {
         vfree(qks_logbuf);
         return -ENOMEM;
     }
 
-    qks_log("[QKS-LOG] Log system initialized. Buffer=%u bytes\n",
-            QKS_LOG_BUF_SIZE);
+    if (!proc_create("log", 0444, qks_proc_dir, &qks_log_proc_ops)) {
+        remove_proc_entry("qks", NULL);
+        vfree(qks_logbuf);
+        return -ENOMEM;
+    }
+
+    qks_log("[QKS-LOG] Log system initialized. Buffer=%u bytes\n", QKS_LOG_BUF_SIZE);
 
     return 0;
 }
 
-/* Exit */
 void qks_log_exit(void)
 {
-    remove_proc_entry("qks/log", NULL);
+    remove_proc_entry("log", qks_proc_dir);
+    remove_proc_entry("qks", NULL);
     if (qks_logbuf)
         vfree(qks_logbuf);
 }

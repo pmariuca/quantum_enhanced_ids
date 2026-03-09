@@ -10,6 +10,7 @@
 #include "qks_message.h"
 #include "qks_verdict.h"
 #include "qks_sigverify.h"
+#include "qks_log.h"
 
 /* -------------------- Pending map -------------------- */
 static DEFINE_XARRAY(qks_pending);

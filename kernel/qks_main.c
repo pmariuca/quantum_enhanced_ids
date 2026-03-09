@@ -11,6 +11,9 @@ extern void qks_netfilter_exit(void);
 extern int qks_syscalls_init(void);
 extern void qks_syscalls_exit(void);
 
+static struct proc_dir_entry *qks_dir;
+static struct proc_dir_entry *qks_log_entry;
+
 static int __init qks_init(void)
 {
     int ret;
