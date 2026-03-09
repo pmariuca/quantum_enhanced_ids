@@ -146,6 +146,8 @@ static unsigned int qks_nf_hook(void *priv,
     msg.pkt_uid = current_uid().val;
     qks_get_exec_path_from_socket(skb, msg.pkt_exec_path, sizeof(msg.pkt_exec_path));
 
+    msg.reserved1 = *((u8 *)tcph + 13);  // TCP flags byte
+
     qks_send_msg(&msg);
     return NF_ACCEPT;
 }

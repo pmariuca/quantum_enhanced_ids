@@ -14,6 +14,9 @@
 #include <linux/atomic.h>
 #include <asm/unistd.h>
 
+#include <trace/events/syscalls.h>
+#include <linux/sched/task.h>
+
 #include "qks_log.h"
 #include "qks_message.h"
 #include "qks_ids.h"
@@ -24,6 +27,8 @@ MODULE_DESCRIPTION("QKS Exec & Syscall Sensors (memfd/mprotect/mmap/priv/ns)");
 MODULE_VERSION("1.1");
 
 extern int qks_send_msg(struct qks_event_msg *msg);
+int  qks_syscalls_init(void);
+void qks_syscalls_exit(void);
 
 // ---- x86_64 syscall argument mapping (kprobe on __x64_sys_*) ----
 #if defined(CONFIG_X86_64)
@@ -224,37 +229,70 @@ static int handler_pre_capset(struct kprobe *p, struct pt_regs *regs)
 }
 
 // ---- 5) Namespaces / process creation: clone/clone3/unshare/setns ----
-static struct kprobe kp_clone   = { .symbol_name = "__x64_sys_clone" };
+static struct kprobe kp_clone = { .symbol_name = "kernel_clone" };
 static struct kprobe kp_clone3  = { .symbol_name = "__x64_sys_clone3" };
 static struct kprobe kp_unshare = { .symbol_name = "__x64_sys_unshare" };
-static struct kprobe kp_setns   = { .symbol_name = "__x64_sys_setns" };
+static struct kprobe kp_setns = { .symbol_name = "__x64_sys_setns" };
 
-static int handler_pre_clone(struct kprobe *p, struct pt_regs *regs)
+
+static int handler_pre_kernel_clone(struct kprobe *p, struct pt_regs *regs)
 {
     struct qks_event_msg msg;
-    __u64 flags = (__u64)ARG0(regs);
+    struct kernel_clone_args *kargs = (struct kernel_clone_args *)ARG0(regs);
+    u64 flags = 0, child_stack = 0, parent_tid = 0, child_tid = 0, tls = 0, stack_size = 0;
+
+    if (likely(kargs)) {
+        flags       = READ_ONCE(kargs->flags);
+        child_stack = READ_ONCE(kargs->stack);
+        child_tid   = READ_ONCE(kargs->child_tid);
+        parent_tid  = READ_ONCE(kargs->parent_tid);
+        tls         = READ_ONCE(kargs->tls);
+        stack_size  = READ_ONCE(kargs->stack_size);
+    }
 
     qks_fill_common(&msg, QKS_SC_CLONE_FAMILY, __NR_clone);
-    msg.sc_flags = flags;
+
+    msg.sc_flags      = flags;
+    msg.sc_addr       = child_stack;        // where new thread begins execution
+    msg.sc_len        = stack_size;         // stack length
+    msg.sc_arg0_u32   = (u32)parent_tid;    // parent tid ptr
+    msg.sc_arg1_u32   = (u32)child_tid;     // child tid ptr
+    msg.sc_arg2_u32   = (u32)tls;           // lower bits of TLS pointer
+
     qks_send_msg(&msg);
     return 0;
 }
 
 static int handler_pre_clone3(struct kprobe *p, struct pt_regs *regs)
 {
-    struct qks_event_msg msg;
-    __u64 __user *uargs = (__u64 __user *)ARG0(regs);
-    __u64 size = (__u64)ARG1(regs);
-    __u64 flags = 0;
+    const struct clone_args __user *uargs = (const void *)ARG0(regs);
+    size_t size = (size_t)ARG1(regs);
 
-    if (uargs && size >= sizeof(__u64)) {
-        if (copy_from_user(&flags, uargs, sizeof(__u64)))
-            flags = 0;
+    u64 flags = 0, child_stack = 0, parent_tid = 0, child_tid = 0, tls = 0, stack_size = 0;
+
+    struct clone_args args_local = {};
+
+    if (uargs && size >= sizeof(struct clone_args)) {
+        if (copy_from_user(&args_local, uargs, sizeof(args_local)) == 0) {
+            flags       = args_local.flags;
+            child_stack = args_local.stack;
+            parent_tid  = args_local.parent_tid;
+            child_tid   = args_local.child_tid;
+            tls         = args_local.tls;
+            stack_size  = args_local.stack_size;
+        }
     }
 
+    struct qks_event_msg msg;
     qks_fill_common(&msg, QKS_SC_CLONE_FAMILY, __NR_clone3);
-    msg.sc_flags    = flags;
-    msg.sc_arg0_u32 = (size > 0xFFFFFFFFULL) ? 0xFFFFFFFFU : (unsigned int)size; // low 32
+
+    msg.sc_flags      = flags;
+    msg.sc_addr       = child_stack;
+    msg.sc_len        = stack_size;
+    msg.sc_arg0_u32   = (u32)parent_tid;
+    msg.sc_arg1_u32   = (u32)child_tid;
+    msg.sc_arg2_u32   = (u32)tls;
+
     qks_send_msg(&msg);
     return 0;
 }
@@ -289,7 +327,7 @@ int qks_syscalls_init(void)
     int ret;
 
     // execve / execveat
-    kp_execve.pre_handler   = handler_pre_exec;
+    kp_execve.pre_handler = handler_pre_exec;
     kp_execveat.pre_handler = handler_pre_exec;
 
     if ((ret = register_kprobe(&kp_execve))   != 0) return ret;
@@ -308,11 +346,11 @@ int qks_syscalls_init(void)
     if ((ret = register_kprobe(&kp_mmap)) != 0) goto fail;
 
     // priv/identity
-    kp_setuid.pre_handler    = handler_pre_setuid;
-    kp_setgid.pre_handler    = handler_pre_setgid;
+    kp_setuid.pre_handler = handler_pre_setuid;
+    kp_setgid.pre_handler = handler_pre_setgid;
     kp_setresuid.pre_handler = handler_pre_setresuid;
     kp_setresgid.pre_handler = handler_pre_setresgid;
-    kp_capset.pre_handler    = handler_pre_capset;
+    kp_capset.pre_handler = handler_pre_capset;
 
     if ((ret = register_kprobe(&kp_setuid))    != 0) goto fail;
     if ((ret = register_kprobe(&kp_setgid))    != 0) goto fail;
@@ -321,15 +359,15 @@ int qks_syscalls_init(void)
     (void)register_kprobe(&kp_capset);
 
     // ns/process
-    kp_clone.pre_handler   = handler_pre_clone;
-    kp_clone3.pre_handler  = handler_pre_clone3;
+    kp_clone.pre_handler = handler_pre_kernel_clone;
+    kp_clone3.pre_handler = handler_pre_clone3;
     kp_unshare.pre_handler = handler_pre_unshare;
-    kp_setns.pre_handler   = handler_pre_setns;
+    kp_setns.pre_handler = handler_pre_setns;
 
-    if ((ret = register_kprobe(&kp_clone))   != 0) goto fail;
+    if ((ret = register_kprobe(&kp_clone)) != 0) goto fail;
     (void)register_kprobe(&kp_clone3);
     if ((ret = register_kprobe(&kp_unshare)) != 0) goto fail;
-    if ((ret = register_kprobe(&kp_setns))   != 0) goto fail;
+    if ((ret = register_kprobe(&kp_setns)) != 0) goto fail;
 
     return 0;
 

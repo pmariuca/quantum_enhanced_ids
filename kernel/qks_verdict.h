@@ -10,4 +10,6 @@ struct qks_verdict_msg {
     u8  hash[QKS_HASH_LEN];
     u8  signature[QKS_SIG_LEN];
     u32 signature_len;
+    uint64_t daemon_ts_sec;
+    uint32_t daemon_ts_nsec;
 };

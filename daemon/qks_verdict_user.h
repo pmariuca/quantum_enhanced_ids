@@ -8,4 +8,6 @@ typedef struct qks_verdict_msg {
     uint8_t  hash[32];
     uint8_t  signature[QKS_SIG_LEN];
     uint32_t signature_len;
+    uint64_t daemon_ts_sec;
+    uint32_t daemon_ts_nsec;
 } qks_verdict_msg;

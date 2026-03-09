@@ -18,12 +18,16 @@
 #include <netlink/genl/genl.h>
 #include <netlink/genl/ctrl.h>
 
+#include <arpa/inet.h>
+#include <netinet/tcp.h>   // TCP flags
+#include <netinet/ip.h>
 
 #include "qks_message_user.h"
 #include "qks_verdict_user.h"
 #include "qks_consts_user.h"
 #include "../kernel/qks_genl.h"
 #include "queue.h"
+#include "syscalls.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -129,6 +133,63 @@ static void send_verdict(struct nl_sock *sk, int fam_id,
     nlmsg_free(reply);
 }
 
+static const char *proto_name(uint8_t p) {
+    switch (p) {
+        case IPPROTO_TCP: return "TCP";
+        case IPPROTO_UDP: return "UDP";
+        case IPPROTO_ICMP: return "ICMP";
+        default: return "OTHER";
+    }
+}
+
+static void print_tcp_flags(uint8_t flags) {
+    printf("        flags = 0x%02x [", flags);
+    if (flags & TH_FIN)  printf(" FIN");
+    if (flags & TH_SYN)  printf(" SYN");
+    if (flags & TH_RST)  printf(" RST");
+    if (flags & TH_PUSH) printf(" PSH");
+    if (flags & TH_ACK)  printf(" ACK");
+    if (flags & TH_URG)  printf(" URG");
+    printf(" ]\n");
+}
+
+static void normalize_packet(const struct qks_event_msg *ev) {
+    // ---- Convert IPs ----
+    char src_ip[INET_ADDRSTRLEN];
+    char dst_ip[INET_ADDRSTRLEN];
+
+    inet_ntop(AF_INET, &ev->packet_src_ip, src_ip, sizeof(src_ip));
+    inet_ntop(AF_INET, &ev->packet_dst_ip, dst_ip, sizeof(dst_ip));
+
+    // ---- Convert ports to host byte order ----
+    uint16_t sport = ntohs(ev->packet_src_port);
+    uint16_t dport = ntohs(ev->packet_dst_port);
+
+    // ---- Print normalized packet metadata ----
+    printf("    PACKET: %s:%u -> %s:%u\n", src_ip, sport, dst_ip, dport);
+    printf("        proto = %u (%s)\n", ev->packet_protocol, proto_name(ev->packet_protocol));
+    printf("        len   = %u bytes\n", ev->packet_len);
+
+    // ---- TCP flags (valid only for TCP) ----
+    if (ev->event_type == QKS_EVENT_PACKET &&
+        ev->packet_protocol == IPPROTO_TCP)
+    {
+        printf("    TCP flags = 0x%02x [", ev->reserved1);
+        if (ev->reserved1 & TH_FIN) printf(" FIN");
+        if (ev->reserved1 & TH_SYN) printf(" SYN");
+        if (ev->reserved1 & TH_RST) printf(" RST");
+        if (ev->reserved1 & TH_PUSH) printf(" PSH");
+        if (ev->reserved1 & TH_ACK) printf(" ACK");
+        if (ev->reserved1 & TH_URG) printf(" URG");
+        printf(" ]\n");
+    }
+
+    // ---- Process information ----
+    printf("        pkt_pid = %u\n", ev->pkt_pid);
+    printf("        pkt_uid = %u\n", ev->pkt_uid);
+    printf("        pkt_exec_path = %s\n", ev->pkt_exec_path);
+}
+
 // ------------------------- PRINTING -------------------------
 static const char* evt_type_str(uint8_t t) {
     switch (t) {
@@ -194,7 +255,27 @@ static void *worker_thread_main(void *arg)
         struct qks_event_msg *ev = queue_pop(&g_queue);
 
         printf("[DAEMON] EVENT id=%lu type=%s\n",
-               ev->event_id, evt_type_str(ev->event_type));
+            ev->event_id, evt_type_str(ev->event_type));
+
+
+        if (ev->event_type == QKS_EVENT_SYSCALL) {
+            printf("SYSCALL: %s (%u)\n",
+                syscall_name_or_unknown(ev->sc_nr),
+                ev->sc_nr);
+            printf("      subtype = %u\n", ev->sc_subtype);
+            printf("      addr    = 0x%lx\n", ev->sc_addr);
+            printf("      len     = %lu\n", ev->sc_len);
+            printf("      flags   = 0x%lx\n", ev->sc_flags);
+            printf("      prot    = 0x%x\n", ev->sc_prot);
+            printf("      arg0    = %u\n", ev->sc_arg0_u32);
+            printf("      arg1    = %u\n", ev->sc_arg1_u32);
+            printf("      arg2    = %u\n", ev->sc_arg2_u32);
+            printf("      str     = '%s'\n", ev->sc_str);
+        }
+
+        if (ev->event_type == QKS_EVENT_PACKET) {
+            normalize_packet(ev);
+        }
 
         // ---- Hash ----
         uint8_t hash[32];
@@ -205,6 +286,11 @@ static void *worker_thread_main(void *arg)
         v.event_id = ev->event_id;
         memcpy(v.hash, hash, 32);
         v.verdict = QKS_ALLOW;
+
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        v.daemon_ts_sec  = now.tv_sec;
+        v.daemon_ts_nsec = now.tv_nsec;
 
         size_t sig_len = 0;
 
