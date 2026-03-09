@@ -1,4 +1,4 @@
-// randombytes.c — userspace RNG for PQClean
+// Userspace RNG for PQClean
 #include <stdint.h>
 #include <stddef.h>
 #include <sys/random.h>

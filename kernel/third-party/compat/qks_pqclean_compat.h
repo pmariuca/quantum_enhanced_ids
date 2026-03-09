@@ -1,7 +1,7 @@
 #pragma once
 
 /* Kernel-safe replacement for <stddef.h>, <stdint.h>, <string.h>
- * used by PQClean (ml-dsa-44 clean implementation).
+ * used by PQClean.
  */
 
 #include <linux/types.h>
@@ -24,7 +24,6 @@
 
 
 /* ---- <stddef.h> replacements ---- */
-
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
@@ -38,7 +37,6 @@ typedef long ptrdiff_t;
 #endif
 
 /* ---- <stdint.h> replacements ---- */
-
 typedef __u8  uint8_t;
 typedef __u16 uint16_t;
 typedef __u32 uint32_t;

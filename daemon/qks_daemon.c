@@ -178,14 +178,12 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
         printf("[DAEMON] self-verify non-ctx = %s for id=%u\n", rc==0 ? "OK" : "FAIL", m->event_id);
 
         if (rc != 0) {
-            // Something is still off; do not send broken sig to kernel
             v.verdict = QKS_DENY;
             v.signature_len = 0;
         } else {
-            v.signature_len = (uint32_t)sig_len; // should be 2420
+            v.signature_len = (uint32_t)sig_len;
         }
     }
-
 
     // ===== Send verdict back to kernel =====
     struct nl_msg *reply = nlmsg_alloc();

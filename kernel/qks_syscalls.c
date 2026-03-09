@@ -336,7 +336,7 @@ int qks_syscalls_init(void)
     return 0;
 
 fail:
-    qks_log("[QKS] Failed to register a syscall kprobe: %d\n", ret);
+    qks_log("Failed to register a syscall kprobe: %d\n", ret);
     return ret;
 }
 

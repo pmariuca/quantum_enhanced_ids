@@ -3,7 +3,6 @@
 
 /*
  * User-space mirror of kernel struct qks_event_msg.
- * MUST match the kernel layout EXACTLY.
  */
 
 typedef struct qks_event_msg {

@@ -3,9 +3,7 @@
 #include "third-party/compat/stdint.h"
 #include "third-party/compat/string.h"
 #include "third-party/compat/stdlib.h"
-
 #include "third-party/pqclean/ml-dsa-44/clean/api.h"
-
 #include "qks_pqc_glue.h"
 
 

@@ -29,7 +29,7 @@ ccflags-y += -I$(PWD)
 ccflags-y += -I$(PWD)/third-party/compat
 ccflags-y += -I$(PWD)/third-party/pqclean/ml-dsa-44/clean
 
-# Force-include your kernel‑safe PQClean compat shim
+# Force-include kernel‑safe PQClean compat shim
 ccflags-y += -include $(PWD)/third-party/compat/qks_pqclean_compat.h
 
 # Silence some warnings from PQClean

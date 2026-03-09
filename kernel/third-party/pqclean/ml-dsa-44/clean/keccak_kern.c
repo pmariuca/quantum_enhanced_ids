@@ -10,7 +10,6 @@
 typedef u64 uint64_t;
 
 /* ---- Keccak round constants, rotations, permutations ---- */
-
 static const uint64_t keccakf_rndc[24] = {
   0x0000000000000001ULL, 0x0000000000008082ULL,
   0x800000000000808aULL, 0x8000000080008000ULL,
@@ -77,7 +76,6 @@ static inline void keccakf(uint64_t st[25])
 }
 
 /* ---- Absorb phase ---- */
-
 static void shake_absorb(uint64_t st[25],
                          const uint8_t *in, size_t inlen,
                          size_t rate)
@@ -115,7 +113,6 @@ static void shake_absorb(uint64_t st[25],
 }
 
 /* ---- Squeeze phase ---- */
-
 static void shake_squeeze(uint64_t st[25],
                           uint8_t *out, size_t outlen,
                           size_t rate)
@@ -134,7 +131,6 @@ static void shake_squeeze(uint64_t st[25],
 }
 
 /* ---- Public API ---- */
-
 void shake128(uint8_t *out, size_t outlen,
               const uint8_t *in, size_t inlen)
 {

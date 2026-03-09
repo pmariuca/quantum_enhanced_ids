@@ -4,7 +4,6 @@
 #include <oqs/oqs.h>
 
 int main(void) {
-    // REQUEST ML‑DSA‑44 EXACTLY — no fallbacks, no aliases
     OQS_SIG *sig = OQS_SIG_new(OQS_SIG_alg_ml_dsa_44);
     if (!sig) {
         fprintf(stderr, "ERROR: ML‑DSA‑44 not supported by your liboqs!\n");

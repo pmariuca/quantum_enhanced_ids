@@ -66,13 +66,13 @@ static int qks_cmd_verdict(struct sk_buff *skb, struct genl_info *info)
 
     ev = qks_take_pending_event(v->event_id);
     if (!ev) {
-        qks_log("[QKS] Verdict for unknown event_id=%u\n", v->event_id);
+        qks_log("Verdict for unknown event_id=%u\n", v->event_id);
         return 0;
     }
 
     ok = qks_verify_signature(ev, v->hash, v->signature, v->signature_len);
     if (!ok) {
-        qks_log("[QKS] Signature/hash invalid for id=%u -> DENY\n", v->event_id);
+        qks_log("Signature/hash invalid for id=%u -> DENY\n", v->event_id);
         qks_apply_verdict(ev, QKS_DENY);
         kfree(ev);
         return 0;
@@ -136,7 +136,7 @@ void qks_netlink_exit(void)
 /* -------------------- Weak Verbict Hook -------------------- */
 __weak void qks_apply_verdict(const struct qks_event_msg *ev, u8 verdict)
 {
-    qks_log("[QKS] (weak) verdict=%u for id=%u\n",
+    qks_log("(weak) verdict=%u for id=%u\n",
             verdict, ev ? ev->event_id : 0);
 }
 EXPORT_SYMBOL_GPL(qks_apply_verdict);
