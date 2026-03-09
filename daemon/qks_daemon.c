@@ -23,14 +23,19 @@
 #include "qks_verdict_user.h"
 #include "qks_consts_user.h"
 #include "../kernel/qks_genl.h"
+#include "queue.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 
 // Globals
 static volatile bool g_running = true;
+
+struct qks_queue g_queue;
+static pthread_t g_worker;
 
 // Private key data
 static uint8_t qks_sk[5000];
@@ -86,7 +91,6 @@ static void hash_event(const struct qks_event_msg *m, uint8_t out[32]) {
     SHA256((const uint8_t *)m, sizeof(*m), out);
 }
 
-
 static bool sign_hash(const uint8_t hash[32], uint8_t sig_out[2420], size_t *sig_len)
 {
     int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_signature(
@@ -102,6 +106,28 @@ static bool sign_hash(const uint8_t hash[32], uint8_t sig_out[2420], size_t *sig
     return true;
 }
 
+static void send_verdict(struct nl_sock *sk, int fam_id,
+                         const struct qks_verdict_msg *v)
+{
+    struct nl_msg *reply = nlmsg_alloc();
+    if (!reply) {
+        fprintf(stderr, "[DAEMON] nlmsg_alloc failed\n");
+        return;
+    }
+
+    genlmsg_put(reply,
+                NL_AUTO_PORT,
+                NL_AUTO_SEQ,
+                fam_id,
+                0,
+                0,
+                QKS_CMD_VERDICT,
+                QKS_GENL_VERSION);
+
+    nla_put(reply, QKS_ATTR_VERDICT, sizeof(*v), v);
+    nl_send_auto(sk, reply);
+    nlmsg_free(reply);
+}
 
 // ------------------------- PRINTING -------------------------
 static const char* evt_type_str(uint8_t t) {
@@ -145,68 +171,68 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
         fprintf(stderr, "[DAEMON] Short event message\n");
         return NL_OK;
     }
-    const qks_event_msg *m = (const qks_event_msg *)nla_data(attrs[QKS_ATTR_MSG]);
 
+    const qks_event_msg *m = nla_data(attrs[QKS_ATTR_MSG]);
+    printf("[DAEMON] EVENT id=%lu type=%s (queued)\n",
+           m->event_id,
+           evt_type_str(m->event_type));
 
-    // ===== Print event =====
-    printf("[DAEMON] EVENT id=%lu type=%s\n", m->event_id, evt_type_str(m->event_type));
+    struct qks_event_msg *cpy = malloc(sizeof(*cpy));
+    memcpy(cpy, m, sizeof(*cpy));
 
-    // ===== Hash =====
-    uint8_t hash[32];
-    hash_event(m, hash);
+    // Push into FIFO queue
+    queue_push(&g_queue, cpy);
 
+    return NL_OK;
+}
 
-    // ===== Sign =====
-    struct qks_verdict_msg v = {0};
-    v.event_id = m->event_id;
-    v.verdict  = QKS_ALLOW;  // Default allow (add detection logic later)
-    memcpy(v.hash, hash, 32);
+static void *worker_thread_main(void *arg)
+{
+    struct qks_ctx *ctx = arg;
 
-    
-    size_t sig_len = 0;
+    while (g_running) {
+        struct qks_event_msg *ev = queue_pop(&g_queue);
 
-    if (!sign_hash(hash, v.signature, &sig_len)) {
-        fprintf(stderr, "[DAEMON] Sign failed for event_id=%lu → DENY\n", m->event_id);
-        v.verdict = QKS_DENY;
-        v.signature_len = 0;
-    } else {
-        // Self-verify with non-ctx API using the PUBLIC key and the actual signature length
-        int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(
-                    v.signature, sig_len,
-                    hash, 32,
-                    g_pk);
-        printf("[DAEMON] self-verify non-ctx = %s for id=%lu\n", rc==0 ? "OK" : "FAIL", m->event_id);
+        printf("[DAEMON] EVENT id=%lu type=%s\n",
+               ev->event_id, evt_type_str(ev->event_type));
 
-        if (rc != 0) {
+        // ---- Hash ----
+        uint8_t hash[32];
+        hash_event(ev, hash);
+
+        // ---- Sign ----
+        struct qks_verdict_msg v = {0};
+        v.event_id = ev->event_id;
+        memcpy(v.hash, hash, 32);
+        v.verdict = QKS_ALLOW;
+
+        size_t sig_len = 0;
+
+        if (!sign_hash(hash, v.signature, &sig_len)) {
+            fprintf(stderr, "[DAEMON] Sign failed for %lu → DENY\n", ev->event_id);
             v.verdict = QKS_DENY;
             v.signature_len = 0;
         } else {
-            v.signature_len = (uint32_t)sig_len;
+            int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(
+                        v.signature, sig_len, hash, 32, g_pk);
+            printf("[DAEMON] verify = %s for %lu\n",
+                   rc == 0 ? "OK" : "FAIL", ev->event_id);
+
+            if (rc == 0)
+                v.signature_len = sig_len;
+            else {
+                v.verdict = QKS_DENY;
+                v.signature_len = 0;
+            }
         }
+
+        // ---- Send verdict ----
+        send_verdict(ctx->sk, ctx->fam_id, &v);
+
+        free(ev);
     }
 
-    // ===== Send verdict back to kernel =====
-    struct nl_msg *reply = nlmsg_alloc();
-    if (!reply) {
-        fprintf(stderr, "[DAEMON] nlmsg_alloc failed\n");
-        return NL_OK;
-    }
-
-    genlmsg_put(reply,
-                NL_AUTO_PORT,
-                NL_AUTO_SEQ,
-                ctx->fam_id,
-                0,
-                0,
-                QKS_CMD_VERDICT,
-                QKS_GENL_VERSION);
-
-    nla_put(reply, QKS_ATTR_VERDICT, sizeof(v), &v);
-
-    nl_send_auto(ctx->sk, reply);
-    nlmsg_free(reply);
-
-    return NL_OK;
+    return NULL;
 }
 
 // ------------------------- MAIN -------------------------
@@ -261,6 +287,8 @@ int main(void) {
     nl_socket_add_membership(sk, grp_id);
 
     struct qks_ctx ctx = { .sk = sk, .fam_id = fam_id };
+    queue_init(&g_queue);
+    pthread_create(&g_worker, NULL, worker_thread_main, &ctx);
     nl_socket_modify_cb(sk, NL_CB_VALID, NL_CB_CUSTOM, on_qks_msg, &ctx);
 
     printf("[DAEMON] Ready. Listening for QKS events…\n");
@@ -272,6 +300,11 @@ int main(void) {
     }
 
     nl_socket_free(sk);
+    
+    g_running = false;
+    pthread_cond_broadcast(&g_queue.cond);
+    pthread_join(g_worker, NULL);
+
     printf("[DAEMON] Shutdown.\n");
     return 0;
 }

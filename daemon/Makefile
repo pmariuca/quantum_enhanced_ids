@@ -26,7 +26,8 @@ PQ_SRCS := \
   $(PQ_DIR)/fips202.c \
   $(PQ_DIR)/symmetric-shake.c
 
-RNG_SRC := randombytes.c
+RNG_SRC := randombytes.c \
+  queue.c
 
 .PHONY: all clean
 
