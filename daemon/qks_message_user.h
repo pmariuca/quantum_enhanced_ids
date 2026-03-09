@@ -10,7 +10,7 @@ typedef struct qks_event_msg {
     uint8_t  event_type;
     uint16_t reserved0;
 
-    uint32_t event_id;
+    uint64_t event_id;
     uint64_t timestamp_ns;
 
     /* EXEC fields */

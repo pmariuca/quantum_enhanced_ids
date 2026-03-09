@@ -28,7 +28,7 @@ struct qks_event_msg {
     __u8  event_type;
     __u16 reserved0;
 
-    __u32 event_id;
+    __u64 event_id;
     __u64 timestamp_ns;
 
     // EXEC fields

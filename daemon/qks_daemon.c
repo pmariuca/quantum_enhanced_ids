@@ -149,7 +149,7 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
 
 
     // ===== Print event =====
-    printf("[DAEMON] EVENT id=%u type=%s\n", m->event_id, evt_type_str(m->event_type));
+    printf("[DAEMON] EVENT id=%lu type=%s\n", m->event_id, evt_type_str(m->event_type));
 
     // ===== Hash =====
     uint8_t hash[32];
@@ -166,7 +166,7 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
     size_t sig_len = 0;
 
     if (!sign_hash(hash, v.signature, &sig_len)) {
-        fprintf(stderr, "[DAEMON] Sign failed for event_id=%u → DENY\n", m->event_id);
+        fprintf(stderr, "[DAEMON] Sign failed for event_id=%lu → DENY\n", m->event_id);
         v.verdict = QKS_DENY;
         v.signature_len = 0;
     } else {
@@ -175,7 +175,7 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
                     v.signature, sig_len,
                     hash, 32,
                     g_pk);
-        printf("[DAEMON] self-verify non-ctx = %s for id=%u\n", rc==0 ? "OK" : "FAIL", m->event_id);
+        printf("[DAEMON] self-verify non-ctx = %s for id=%lu\n", rc==0 ? "OK" : "FAIL", m->event_id);
 
         if (rc != 0) {
             v.verdict = QKS_DENY;

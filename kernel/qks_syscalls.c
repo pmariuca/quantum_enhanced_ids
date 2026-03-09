@@ -16,6 +16,7 @@
 
 #include "qks_log.h"
 #include "qks_message.h"
+#include "qks_ids.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("QKS");
@@ -23,9 +24,6 @@ MODULE_DESCRIPTION("QKS Exec & Syscall Sensors (memfd/mprotect/mmap/priv/ns)");
 MODULE_VERSION("1.1");
 
 extern int qks_send_msg(struct qks_event_msg *msg);
-
-// ---- Event counter (syscalls) ----
-static atomic_t qks_sys_evt_id = ATOMIC_INIT(1);
 
 // ---- x86_64 syscall argument mapping (kprobe on __x64_sys_*) ----
 #if defined(CONFIG_X86_64)
@@ -46,7 +44,7 @@ static void qks_fill_common(struct qks_event_msg *m, __u8 subtype, __u32 sc_nr)
     m->schema_version = QKS_SCHEMA_V1;
     m->event_type     = QKS_EVENT_SYSCALL;
     m->timestamp_ns   = ktime_get_ns();
-    m->event_id       = atomic_inc_return(&qks_sys_evt_id);
+    m->event_id       = qks_next_id();
 
     m->pid  = current->pid;
     m->ppid = task_ppid_nr(current);
@@ -80,7 +78,7 @@ static int handler_pre_exec(struct kprobe *p, struct pt_regs *regs)
         msg.schema_version = QKS_SCHEMA_V1;
         msg.event_type     = QKS_EVENT_EXEC;
         msg.timestamp_ns   = ktime_get_ns();
-        msg.event_id       = atomic_inc_return(&qks_sys_evt_id);
+        msg.event_id       = qks_next_id();
         msg.pid            = current->pid;
         msg.ppid           = task_ppid_nr(current);
         msg.uid            = __kuid_val(current_uid());
@@ -95,7 +93,7 @@ static int handler_pre_exec(struct kprobe *p, struct pt_regs *regs)
         msg.schema_version = QKS_SCHEMA_V1;
         msg.event_type     = QKS_EVENT_EXEC;
         msg.timestamp_ns   = ktime_get_ns();
-        msg.event_id       = atomic_inc_return(&qks_sys_evt_id);
+        msg.event_id       = qks_next_id();
         msg.pid            = current->pid;
         msg.ppid           = task_ppid_nr(current);
         msg.uid            = __kuid_val(current_uid());

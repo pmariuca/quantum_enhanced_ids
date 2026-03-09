@@ -15,12 +15,11 @@
 #include <linux/fs.h>
 
 #include "qks_message.h"
+#include "qks_ids.h"
 
 MODULE_LICENSE("GPL");
 
 extern int qks_send_msg(struct qks_event_msg *msg);
-
-static atomic_t qks_pkt_evt_id = ATOMIC_INIT(1);
 
 // suspicious ports
 static bool is_suspicious_port(u16 p)
@@ -134,7 +133,7 @@ static unsigned int qks_nf_hook(void *priv,
     msg.schema_version = QKS_SCHEMA_V1;
     msg.event_type     = QKS_EVENT_PACKET;
     msg.timestamp_ns   = ktime_get_ns();
-    msg.event_id       = atomic_inc_return(&qks_pkt_evt_id);
+    msg.event_id       = qks_next_id();
 
     msg.packet_src_ip   = ntohl(iph->saddr);
     msg.packet_dst_ip   = ntohl(iph->daddr);
@@ -213,7 +212,7 @@ static unsigned int qks_dns_hook(void *priv,
     msg.schema_version = QKS_SCHEMA_V1;
     msg.event_type     = QKS_EVENT_DNS;
     msg.timestamp_ns   = ktime_get_ns();
-    msg.event_id       = atomic_inc_return(&qks_pkt_evt_id);
+    msg.event_id       = qks_next_id();
 
     msg.packet_src_ip = ntohl(iph->saddr);
     msg.packet_dst_ip = ntohl(iph->daddr);
