@@ -11,6 +11,17 @@
   },
 
   "global": {
+    "allow": [  
+      {
+        "path_prefix": "/usr/bin/dash",
+        "reason": "system_shell_whitelist"
+      },
+      {
+        "uid_in": [0],
+        "path_prefix_any": ["/usr/bin/", "/bin/", "/sbin/"],
+        "reason": "root_system_binaries"
+      }
+    ],
     "deny": [
       {
         "uid_in": [0],
@@ -21,13 +32,6 @@
         "file_suffix_any": [".so", ".dll", ".sys"],
         "path_prefix_any": ["/tmp/", "/dev/shm/"],
         "reason": "dynamic_library_written_and_executed"
-      }
-    ],
-    "allow": [
-      {
-        "uid_in": [0],
-        "path_prefix_any": ["/usr/bin/", "/bin/", "/sbin/"],
-        "reason": "root_system_binaries"
       }
     ]
   },

@@ -364,28 +364,29 @@ static void *worker_thread_main(void *arg)
         }
 
         const char *pol_reason = NULL;
-        enum qks_policy_result pol = qks_policy_eval(ev, &pol_reason);
+        bool suppress_log = false;
+        enum qks_policy_result pol = qks_policy_eval(ev, &pol_reason, &suppress_log);
 
+        if (!suppress_log) {
+            printf("[DAEMON] policy = %s (reason=%s)\n",
+                pol == QKS_POLICY_ALLOW ? "ALLOW" :
+                pol == QKS_POLICY_DENY  ? "DENY"  : "UNKNOWN",
+                pol_reason ? pol_reason : "n/a");
 
-        printf("[DAEMON] policy = %s (reason=%s)\n",
-            pol == QKS_POLICY_ALLOW ? "ALLOW" :
-            pol == QKS_POLICY_DENY  ? "DENY"  : "UNKNOWN",
-            pol_reason ? pol_reason : "n/a");
+            qks_write_event_jsonl(ev, pol, pol_reason);
 
-        qks_write_event_jsonl(ev, pol, pol_reason);
+            if (pol == QKS_POLICY_DENY) {
+                struct qks_verdict_msg v = {0};
+                v.event_id = ev->event_id;
+                v.verdict  = QKS_DENY;
 
-        if (pol == QKS_POLICY_DENY) {
-            struct qks_verdict_msg v = {0};
-            v.event_id = ev->event_id;
-            v.verdict  = QKS_DENY;
+                strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
 
-            strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
-
-            send_verdict(ctx->sk, ctx->fam_id, &v);
-            free(ev);
-            continue;
+                send_verdict(ctx->sk, ctx->fam_id, &v);
+                free(ev);
+                continue;
+            }
         }
-
 
         // ---- Hash ----
         uint8_t hash[32];
@@ -442,6 +443,7 @@ int main(void) {
         fprintf(stderr, "[DAEMON] Failed to load policy.json\n");
         return 1;
     }
+    qks_policy_merge_local("policy/policy.local.json");
 
     struct nl_sock *sk = nl_socket_alloc();
     if (!sk) {

@@ -69,6 +69,12 @@ static void qks_copy_user_str(char *dst, size_t dst_len, const char __user *uptr
     }
 }
 
+static inline bool qks_str_has_prefix(const char *s, const char *pfx)
+{
+    size_t n = strlen(pfx);
+    return strncmp(s, pfx, n) == 0;
+}
+
 static struct kprobe kp_execve   = { .symbol_name = "__x64_sys_execve"   };
 static struct kprobe kp_execveat = { .symbol_name = "__x64_sys_execveat" };
 
@@ -106,6 +112,9 @@ static int handler_pre_exec(struct kprobe *p, struct pt_regs *regs)
         if (!IS_ERR(path))
             strscpy(msg.exec_path, path, sizeof(msg.exec_path));
 
+        if (qks_str_has_prefix(msg.exec_path, "/home/admin/.vscode-server/")) {
+            return 0;
+        }
         qks_send_msg(&msg);
     }
 

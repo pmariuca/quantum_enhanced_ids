@@ -13,6 +13,7 @@
 #include <netinet/tcp.h>        // TH_SYN, TH_ACK, ...
 #include <sys/mman.h>           // PROT_EXEC, PROT_WRITE
 #include <sched.h>              // CLONE_* (for clone/setns flags)
+#include <fnmatch.h>
 
 
 #ifndef TH_FIN
@@ -88,6 +89,56 @@ bool qks_policy_load(const char *path)
     return true;
 }
 
+bool qks_policy_merge_local(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "[POLICY] no local override %s\n", path);
+        return false;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    rewind(f);
+
+    char *buf = malloc(size + 1);
+    fread(buf, 1, size, f);
+    buf[size] = '\0';
+    fclose(f);
+
+    cJSON *local = cJSON_Parse(buf);
+    free(buf);
+
+    if (!local) {
+        fprintf(stderr, "[POLICY] invalid JSON in %s\n", path);
+        return false;
+    }
+
+    /* merge keys */
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, local) {
+        cJSON *existing = cJSON_GetObjectItem(policy_root, item->string);
+        if (existing) {
+            /* recursively merge arrays/objects */
+            if (cJSON_IsObject(item)) {
+                cJSON *sub = NULL;
+                cJSON_ArrayForEach(sub, item) {
+                    cJSON_ReplaceItemInObject(existing, sub->string, cJSON_Duplicate(sub, 1));
+                }
+            } else {
+                cJSON_ReplaceItemInObject(policy_root, item->string, cJSON_Duplicate(item, 1));
+            }
+        } else {
+            /* new key */
+            cJSON_AddItemToObject(policy_root, item->string, cJSON_Duplicate(item, 1));
+        }
+    }
+
+    cJSON_Delete(local);
+    printf("[POLICY] merged local overrides from %s\n", path);
+    return true;
+}
+
 /* ===================== Helpers ===================== */
 static inline bool str_startswith(const char *s, const char *prefix) {
     return s && prefix && strncmp(s, prefix, strlen(prefix)) == 0;
@@ -105,6 +156,11 @@ static inline bool str_endswith(const char *s, const char *suffix) {
 static bool get_any_bool(const cJSON *rule) {
     const cJSON *any = cJSON_GetObjectItemCaseSensitive(rule, "any");
     return (any && cJSON_IsBool(any) && cJSON_IsTrue(any));
+}
+
+static inline bool json_suppress_log(const cJSON *rule) {
+    const cJSON *sl = cJSON_GetObjectItemCaseSensitive(rule, "suppress_log");
+    return (sl && cJSON_IsBool(sl) && cJSON_IsTrue(sl));
 }
 
 /* UID constraints:
@@ -190,6 +246,55 @@ static bool match_exec_rule(const cJSON *rule, const struct qks_event_msg *ev)
             }
         }
         if (!ok) return false;
+    }
+
+    /* path_prefix_any */
+    const cJSON *ppa = cJSON_GetObjectItemCaseSensitive(rule, "path_prefix_any");
+    if (ppa && cJSON_IsArray(ppa)) {
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, ppa) {
+            if (cJSON_IsString(it) && str_startswith(p, it->valuestring)) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) return false;
+    }
+
+    /* file_suffix_any */
+    const cJSON *fsa = cJSON_GetObjectItemCaseSensitive(rule, "file_suffix_any");
+    if (fsa && cJSON_IsArray(fsa)) {
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, fsa) {
+            if (cJSON_IsString(it) && str_endswith(p, it->valuestring)) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) return false;
+    }
+
+    /* exec_paths_any */
+    const cJSON *epa = cJSON_GetObjectItemCaseSensitive(rule, "exec_paths_any");
+    if (epa && cJSON_IsArray(epa)) {
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, epa) {
+            if (cJSON_IsString(it) && str_startswith(p, it->valuestring)) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) return false;
+    }
+
+    /* path_glob */
+    const cJSON *pg = cJSON_GetObjectItemCaseSensitive(rule, "path_glob");
+    if (pg && cJSON_IsString(pg)) {
+        if (fnmatch(pg->valuestring, p, 0) != 0)
+            return false;
     }
 
     return true;
@@ -468,8 +573,10 @@ static inline const char *get_reason(const cJSON *rule, const char *fallback) {
 
 static enum qks_policy_result eval_section(const cJSON *section,
                                            const struct qks_event_msg *ev,
-                                           const char **reason_out)
+                                           const char **reason_out,
+                                           bool *suppress_out)
 {
+    if (suppress_out) *suppress_out = false;
     if (!section) return QKS_POLICY_UNKNOWN;
 
     /* 1) deny */
@@ -487,6 +594,8 @@ static enum qks_policy_result eval_section(const cJSON *section,
             }
             if (match) {
                 *reason_out = get_reason(rule, "deny_rule");
+                if (suppress_out) *suppress_out = json_suppress_log(rule);
+
                 return QKS_POLICY_DENY;
             }
         }
@@ -507,6 +616,8 @@ static enum qks_policy_result eval_section(const cJSON *section,
             }
             if (match) {
                 *reason_out = get_reason(rule, "allow_rule");
+                if (suppress_out) *suppress_out = json_suppress_log(rule);
+
                 return QKS_POLICY_ALLOW;
             }
         }
@@ -527,6 +638,8 @@ static enum qks_policy_result eval_section(const cJSON *section,
             }
             if (match) {
                 *reason_out = get_reason(rule, "ml_rule");
+                if (suppress_out) *suppress_out = json_suppress_log(rule);
+                    
                 return QKS_POLICY_UNKNOWN;
             }
         }
@@ -537,7 +650,8 @@ static enum qks_policy_result eval_section(const cJSON *section,
 
 /* ===================== Main API ===================== */
 enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev,
-                                       const char **reason_out)
+                                       const char **reason_out,
+                                       bool *suppress_log_out)
 {
     if (!policy_root) {
         *reason_out = "policy_not_loaded";
@@ -554,6 +668,8 @@ enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev,
             cJSON_ArrayForEach(rule, deny) {
                 if (match_global_rule(rule, ev)) {
                     *reason_out = get_reason(rule, "global_deny");
+                    if (suppress_log_out) *suppress_log_out = json_suppress_log(rule);
+
                     return QKS_POLICY_DENY;
                 }
             }
@@ -565,6 +681,8 @@ enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev,
             cJSON_ArrayForEach(rule, allow) {
                 if (match_global_rule(rule, ev)) {
                     *reason_out = get_reason(rule, "global_allow");
+                    if (suppress_log_out) *suppress_log_out = json_suppress_log(rule);
+
                     return QKS_POLICY_ALLOW;
                 }
             }
@@ -581,7 +699,7 @@ enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev,
         default: section = NULL; break;
     }
 
-    enum qks_policy_result r = eval_section(section, ev, reason_out);
+    enum qks_policy_result r = eval_section(section, ev, reason_out, suppress_log_out);
     if (r != QKS_POLICY_UNKNOWN) return r;
 
     /* Fallback to default_action at root */

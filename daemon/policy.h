@@ -11,6 +11,9 @@ enum qks_policy_result {
 };
 
 bool qks_policy_load(const char *path_json);
-enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev, const char **reason_out);
+bool qks_policy_merge_local(const char *path);
+enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev,
+                                       const char **reason_out,
+                                       bool *suppress_log_out);
 
 #endif

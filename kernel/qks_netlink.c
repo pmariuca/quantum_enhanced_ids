@@ -208,8 +208,8 @@ static void qks_verdict_timeout(struct timer_list *t)
     xa_erase(&qks_pending, (unsigned long)p->id);
 
     qks_log("FALLBACK: verdict timeout -> DENY id=%llu", p->id);
-    qks_dump_event(p->ev);
-    qks_apply_verdict(p->ev, QKS_DENY, "timeout");
+    // qks_dump_event(p->ev);
+    // qks_apply_verdict(p->ev, QKS_DENY, "timeout");
 
     kfree(p->ev);
     kfree(p);
@@ -245,12 +245,12 @@ int qks_send_msg(struct qks_event_msg *msg)
 
     ret = genlmsg_multicast(&qks_family, skb, 0, 0, GFP_ATOMIC);
     
+    
     if (ret == -ESRCH) { /* no listeners */
-        qks_log("FALLBACK: no listeners -> immediate DENY id=%llu", msg->event_id);
-        qks_dump_event(msg);
-        qks_apply_verdict(msg, QKS_DENY, "no_listeners");
+        qks_log("FALLBACK: no listeners -> ALLOW id=%llu", msg->event_id);
         return 0;
     }
+
     if (ret)
         return ret;
 

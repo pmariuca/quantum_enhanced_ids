@@ -1,0 +1,19 @@
+
+{
+    "syscall": {
+        "allow": [
+        {
+            "nr": 435,
+            "subtype": "CLONE_FAMILY",
+            "reason": "normal_thread_creation",
+            "suppress_log": true
+        },
+        {
+            "nr": 56,
+            "subtype": "CLONE3_FAMILY",
+            "reason": "normal_thread_creation",
+            "suppress_log": true
+        }
+        ]
+    }
+}

@@ -12,6 +12,8 @@
 #include <linux/time.h>
 #include <linux/byteorder/generic.h>
 #include <linux/in.h>
+#include <linux/sched.h>
+#include <linux/cred.h>
 
 #include "qks_message.h"
 #include "qks_verdict.h"
@@ -45,6 +47,26 @@ static int qks_kill_tgid(pid_t tgid, int sig)
     rcu_read_unlock();
 
     return ret;
+}
+
+static bool qks_should_not_kill(const struct qks_event_msg *ev)
+{
+    if (!ev)
+        return true;
+
+    /* NEVER kill PID 1 */
+    if (ev->pid == 1)
+        return true;
+
+    /* NEVER kill kernel threads */
+    if (current->flags & PF_KTHREAD)
+        return true;
+
+    /* NEVER kill root-owned processes for now (safety) */
+    if (ev->uid == 0)
+        return true;
+
+    return false;
 }
 
 /* ===================== Packet drop-list (TTL) ================== */
@@ -165,6 +187,12 @@ EXPORT_SYMBOL_GPL(qks_drop_should_block);
 
 static void qks_enforce_exec_deny(const struct qks_event_msg *ev, const char *reason)
 {
+    if (qks_should_not_kill(ev)) {
+        qks_log("DENY SKIPPED (protected process): id=%llu pid=%u reason='%s'",
+                (u64)ev->event_id, ev->pid, reason);
+        return;
+    }
+
     int rc = qks_kill_tgid(ev->pid, SIGKILL);
     qks_log("EXEC DENY: id=%llu pid=%u reason='%s' path='%s' kill_rc=%d",
             (u64)ev->event_id, ev->pid, reason, ev->exec_path, rc);
@@ -173,6 +201,12 @@ static void qks_enforce_exec_deny(const struct qks_event_msg *ev, const char *re
 
 static void qks_enforce_syscall_deny(const struct qks_event_msg *ev, const char *reason)
 {
+    if (qks_should_not_kill(ev)) {
+        qks_log("DENY SKIPPED (protected process): id=%llu pid=%u reason='%s'",
+                (u64)ev->event_id, ev->pid, reason);
+        return;
+    }
+    
     int rc = qks_kill_tgid(ev->pid, SIGKILL);
     qks_log("SYSCALL DENY: id=%llu pid=%u reason='%s' subtype=%u kill_rc=%d",
             (u64)ev->event_id, ev->pid, reason, ev->sc_subtype, rc);
