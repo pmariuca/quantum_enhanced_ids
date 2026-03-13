@@ -98,10 +98,30 @@ static const char* evt_type_str(uint8_t t) {
 }
 
 // ------------------------- HELPERS -------------------------
+static void to_hex(const uint8_t *in, size_t len, char *out, size_t out_len)
+{
+    static const char *hex = "0123456789abcdef";
+
+    if (out_len < len * 2 + 1) {
+        if (out_len > 0) out[0] = '\0';
+        return;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        out[i*2]   = hex[(in[i] >> 4) & 0xF];
+        out[i*2+1] = hex[in[i] & 0xF];
+    }
+    out[len * 2] = '\0';
+}
+
 
 static void qks_write_event_jsonl(const struct qks_event_msg *ev,
                                   enum qks_policy_result pol,
-                                  const char *reason)
+                                  const char *reason,
+                                  const char *sig_status,
+                                  size_t sig_len,
+                                  const uint8_t hash[32],
+                                  const char *sig_scheme)
 {
     FILE *f = fopen("policy/events.jsonl", "a");
     if (!f) {
@@ -123,6 +143,25 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
              pol == QKS_POLICY_ALLOW ? "ALLOW" :
              pol == QKS_POLICY_DENY  ? "DENY"  : "UNKNOWN");
     fprintf(f, "\"reason\":\"%s\",", reason ? reason : "none");
+    
+    // --- Signature metadata block ---
+    {
+        char hash_hex[65] = {0};
+        if (hash) {
+            to_hex(hash, 32, hash_hex, sizeof(hash_hex));
+        }
+
+        fprintf(f, "\"sig\":{");
+        fprintf(f, "\"status\":\"%s\",", sig_status ? sig_status : "n/a");
+        fprintf(f, "\"len\":%zu,", sig_len);
+        fprintf(f, "\"scheme\":\"%s\",", sig_scheme ? sig_scheme : "verdict_tuple_v1");
+        if (hash) {
+            fprintf(f, "\"hash\":\"%s\"", hash_hex);
+        } else {
+            fprintf(f, "\"hash\":null");
+        }
+        fprintf(f, "},");
+    }
 
     // structured event fields
     if (ev->event_type == QKS_EVENT_EXEC) {
@@ -192,8 +231,38 @@ static bool load_private_key(void) {
     return true;
 }
 
-static void hash_event(const struct qks_event_msg *m, uint8_t out[32]) {
-    SHA256((const uint8_t *)m, sizeof(*m), out);
+static inline uint64_t to_be64(uint64_t x) {
+    // portable htonll (not in POSIX)
+    return ((uint64_t)htonl((uint32_t)(x >> 32))) |
+           ((uint64_t)htonl((uint32_t)(x & 0xffffffff)) << 32);
+}
+
+static void qks_hash_verdict_tuple(uint64_t event_id,
+                                   uint8_t verdict,
+                                   uint64_t ts_sec,
+                                   uint32_t ts_nsec,
+                                   uint8_t out_hash[32])
+{
+    // Domain separation tag to prevent cross-protocol confusion
+    static const char domain[] = "QKS:verdict:v1";
+    uint8_t buf[ sizeof(domain) - 1 + 8 + 1 + 8 + 4 ];
+    size_t  off = 0;
+
+    memcpy(buf + off, domain, sizeof(domain) - 1);
+    off += sizeof(domain) - 1;
+
+    // Emit fields in big-endian, fixed width
+    uint64_t be_eid   = to_be64(event_id);
+    uint64_t be_sec   = to_be64(ts_sec);
+    uint32_t be_nsec  = htonl(ts_nsec);
+
+    memcpy(buf + off, &be_eid, 8); off += 8;
+    buf[off++] = verdict;
+    memcpy(buf + off, &be_sec, 8); off += 8;
+    memcpy(buf + off, &be_nsec, 4); off += 4;
+
+    // Hash
+    SHA256(buf, off, out_hash);
 }
 
 static bool sign_hash(const uint8_t hash[32], uint8_t sig_out[2420], size_t *sig_len)
@@ -367,59 +436,75 @@ static void *worker_thread_main(void *arg)
         bool suppress_log = false;
         enum qks_policy_result pol = qks_policy_eval(ev, &pol_reason, &suppress_log);
 
+        // ---- Sign ----
+        struct qks_verdict_msg v = {0};
+        v.event_id = ev->event_id;
+        v.verdict = QKS_ALLOW;
+
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        v.daemon_ts_sec  = (uint64_t)now.tv_sec;
+        v.daemon_ts_nsec = (uint32_t)now.tv_nsec;
+
+        strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
+        v.reason[sizeof(v.reason)-1] = '\0';
+        
+        qks_hash_verdict_tuple(v.event_id, v.verdict, v.daemon_ts_sec, v.daemon_ts_nsec, v.hash);   
+
+        size_t sig_len = 0;
+        const char *sig_status = "ok";
+        
+        if (!sign_hash(v.hash, v.signature, &sig_len)) {
+            sig_status = "fail_sign";
+            fprintf(stderr, "[DAEMON] Sign failed for %lu → DENY\n", ev->event_id);
+            v.verdict = QKS_DENY;
+            v.signature_len = 0;
+        } else {
+            int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(
+                        v.signature, sig_len, v.hash, 32, g_pk);
+            if (rc == 0)
+                v.signature_len = sig_len;
+            else {
+                v.verdict = QKS_DENY;
+                v.signature_len = 0;
+            }
+        }
+
         if (!suppress_log) {
             printf("[DAEMON] policy = %s (reason=%s)\n",
                 pol == QKS_POLICY_ALLOW ? "ALLOW" :
                 pol == QKS_POLICY_DENY  ? "DENY"  : "UNKNOWN",
                 pol_reason ? pol_reason : "n/a");
 
-            qks_write_event_jsonl(ev, pol, pol_reason);
+            qks_write_event_jsonl(ev, pol, pol_reason,
+                                    sig_status, v.signature_len,
+                                    v.hash, "verdict_tuple_v1");
 
             if (pol == QKS_POLICY_DENY) {
                 struct qks_verdict_msg v = {0};
                 v.event_id = ev->event_id;
                 v.verdict  = QKS_DENY;
 
+                // timestamp
+                struct timespec now;
+                clock_gettime(CLOCK_REALTIME, &now);
+                v.daemon_ts_sec  = (uint64_t)now.tv_sec;
+                v.daemon_ts_nsec = (uint32_t)now.tv_nsec;
+
                 strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
+
+                qks_hash_verdict_tuple(v.event_id, v.verdict, v.daemon_ts_sec, v.daemon_ts_nsec, v.hash);
+                
+                size_t sig_len = 0;
+                if (!sign_hash(v.hash, v.signature, &sig_len)) {
+                    v.signature_len = 0;
+                } else {
+                    v.signature_len = sig_len;
+                }
 
                 send_verdict(ctx->sk, ctx->fam_id, &v);
                 free(ev);
                 continue;
-            }
-        }
-
-        // ---- Hash ----
-        uint8_t hash[32];
-        hash_event(ev, hash);
-
-        // ---- Sign ----
-        struct qks_verdict_msg v = {0};
-        v.event_id = ev->event_id;
-        memcpy(v.hash, hash, 32);
-        v.verdict = QKS_ALLOW;
-
-        struct timespec now;
-        clock_gettime(CLOCK_REALTIME, &now);
-        v.daemon_ts_sec  = now.tv_sec;
-        v.daemon_ts_nsec = now.tv_nsec;
-
-        strncpy(v.reason, pol_reason ? pol_reason : "none", sizeof(v.reason)-1);
-        v.reason[sizeof(v.reason)-1] = '\0';
-
-        size_t sig_len = 0;
-
-        if (!sign_hash(hash, v.signature, &sig_len)) {
-            fprintf(stderr, "[DAEMON] Sign failed for %lu → DENY\n", ev->event_id);
-            v.verdict = QKS_DENY;
-            v.signature_len = 0;
-        } else {
-            int rc = PQCLEAN_MLDSA44_CLEAN_crypto_sign_verify(
-                        v.signature, sig_len, hash, 32, g_pk);
-            if (rc == 0)
-                v.signature_len = sig_len;
-            else {
-                v.verdict = QKS_DENY;
-                v.signature_len = 0;
             }
         }
 

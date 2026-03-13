@@ -130,7 +130,7 @@ static int qks_cmd_verdict(struct sk_buff *skb, struct genl_info *info)
     // print event
     qks_dump_event(ev);
 
-    ok = qks_verify_signature(ev, v->hash, v->signature, v->signature_len);
+    ok = qks_verify_signature(v, v->hash, v->signature, v->signature_len);
     if (!ok) {
         qks_log("Signature/hash INVALID for id=%llu -> DENY", ev->event_id);
         qks_apply_verdict(ev, QKS_DENY, "invalid_signature");
