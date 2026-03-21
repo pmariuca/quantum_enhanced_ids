@@ -112,7 +112,7 @@ static int qks_cmd_verdict(struct sk_buff *skb, struct genl_info *info)
 
     p = qks_take_pending(v->event_id);
     if (!p) {
-        qks_log("Verdict for unknown event_id=%llu (maybe timed out)", (u64)v->event_id);
+        qks_log("Verdict for unknown event_id=%llu", (u64)v->event_id);
         return 0;
     }
 
@@ -204,7 +204,7 @@ static void qks_verdict_timeout(struct timer_list *t)
     if (atomic_xchg(&p->done, 1) != 0)
         return;
 
-    /* Remove from map (ok if already gone) */
+    /* Remove from map*/
     xa_erase(&qks_pending, (unsigned long)p->id);
 
     qks_log("FALLBACK: verdict timeout -> DENY id=%llu", p->id);

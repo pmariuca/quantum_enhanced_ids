@@ -27,7 +27,6 @@
 #endif
 
 /* ===================== Process kill helper ===================== */
-
 static int qks_kill_tgid(pid_t tgid, int sig)
 {
     int ret = -ESRCH;
@@ -70,7 +69,7 @@ static bool qks_should_not_kill(const struct qks_event_msg *ev)
 }
 
 /* ===================== Packet drop-list (TTL) ================== */
-/* We maintain a small in-kernel cache for (pid, dst_ip, dst_port, proto)
+/* Maintain a small in-kernel cache for (pid, dst_ip, dst_port, proto)
  * so the Netfilter hook can drop subsequent outbound packets for a while
  * after a DENY verdict arrives asynchronously.
  */
@@ -85,7 +84,7 @@ struct qks_drop_key {
 struct qks_drop_ent {
     struct hlist_node  node;
     struct qks_drop_key key;
-    unsigned long       expires;   /* jiffies */
+    unsigned long       expires;
 };
 
 #define QKS_DROP_BITS 10  /* 1024 buckets */
@@ -94,7 +93,6 @@ static DEFINE_SPINLOCK(qks_drop_lock);
 
 static u32 qks_drop_hash(const struct qks_drop_key *k)
 {
-    /* Simple mix—good enough for small table */
     return (k->pid ^ k->ip ^ (k->port << 16) ^ k->proto);
 }
 
@@ -184,7 +182,6 @@ bool qks_drop_should_block(u32 pid, u32 ip, u16 port, u8 proto)
 EXPORT_SYMBOL_GPL(qks_drop_should_block);
 
 /* ===================== Verdict enforcement ===================== */
-
 static void qks_enforce_exec_deny(const struct qks_event_msg *ev, const char *reason)
 {
     if (qks_should_not_kill(ev)) {
@@ -214,7 +211,6 @@ static void qks_enforce_syscall_deny(const struct qks_event_msg *ev, const char 
 
 static void qks_enforce_packet_deny(const struct qks_event_msg *ev, const char *reason)
 {
-    /* Store in drop-list for near-future flows (e.g., 30s) */
     __be32 dip_be = htonl(ev->packet_dst_ip);
     qks_drop_add(ev->pkt_pid, ev->packet_dst_ip, ev->packet_dst_port, ev->packet_protocol, 30000);
 
@@ -225,7 +221,6 @@ static void qks_enforce_packet_deny(const struct qks_event_msg *ev, const char *
 
 static void qks_enforce_dns_deny(const struct qks_event_msg *ev, const char *reason)
 {
-    /* This is the outbound DNS query—add temporary block for UDP/53 from this pid */
     qks_drop_add(ev->pkt_pid, ev->packet_dst_ip, 53, IPPROTO_UDP, 30000);
 
     qks_log("DNS DENY: id=%llu pid=%u reason='%s' qname='%s' qtype=%u (block udp/53 for 30s)",
@@ -238,7 +233,7 @@ void qks_apply_verdict(const struct qks_event_msg *ev, u8 verdict, const char *r
     if (!ev) return;
 
     if (verdict != QKS_DENY) {
-        /* ALLOW or UNKNOWN: policy-only phase => no kernel action */
+        /* ALLOW or UNKNOWN: policy-only phase - no kernel action */
         pr_debug("QKS ALLOW/UNKNOWN: id=%llu type=%u\n",
                  (u64)ev->event_id, ev->event_type);
         return;

@@ -711,7 +711,7 @@ enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev,
         } else if (strcmp(da->valuestring, "deny") == 0) {
             *reason_out = "default_deny";
             return QKS_POLICY_DENY;
-        } else { /* "ml" or unknown → UNKNOWN */
+        } else { /* "ml" or unknown - UNKNOWN */
             *reason_out = "default_ml";
             return QKS_POLICY_UNKNOWN;
         }

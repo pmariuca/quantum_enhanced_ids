@@ -2,6 +2,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
+#include <linux/binfmts.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
@@ -39,7 +40,7 @@ void qks_syscalls_exit(void);
 # define ARG4(regs) ((regs)->r8)
 # define ARG5(regs) ((regs)->r9)
 #else
-# error "This file currently targets x86_64 only. Ask me for ARM64 mappings if needed."
+# error "This file currently targets x86_64 only"
 #endif
 
 // ---- Helpers ----
@@ -77,6 +78,8 @@ static inline bool qks_str_has_prefix(const char *s, const char *pfx)
 
 static struct kprobe kp_execve   = { .symbol_name = "__x64_sys_execve"   };
 static struct kprobe kp_execveat = { .symbol_name = "__x64_sys_execveat" };
+static struct kprobe kp_bprm = { .symbol_name = "security_bprm_check" };
+
 
 static int handler_pre_exec(struct kprobe *p, struct pt_regs *regs)
 {
@@ -121,6 +124,31 @@ static int handler_pre_exec(struct kprobe *p, struct pt_regs *regs)
     return 0;
 }
 
+static int handler_pre_bprm(struct kprobe *p, struct pt_regs *regs)
+{
+    struct linux_binprm *bprm = (struct linux_binprm *)regs->di;
+    char tmp[512];
+    char *path;
+    struct qks_event_msg msg = {0};
+
+    msg.schema_version = QKS_SCHEMA_V1;
+    msg.event_type     = QKS_EVENT_EXEC;
+    msg.timestamp_ns   = ktime_get_ns();
+    msg.event_id       = qks_next_id();
+    msg.pid            = current->pid;
+    msg.ppid           = task_ppid_nr(current);
+    msg.uid            = __kuid_val(current_uid());
+
+    if (bprm && bprm->file) {
+        path = d_path(&bprm->file->f_path, tmp, sizeof(tmp));
+        if (!IS_ERR(path))
+            strscpy(msg.exec_path, path, sizeof(msg.exec_path));
+    }
+
+    qks_send_msg(&msg);
+    return 0;
+}
+
 // ---- 1) memfd_create(name, flags) ----
 static struct kprobe kp_memfd_create = { .symbol_name = "__x64_sys_memfd_create" };
 
@@ -139,7 +167,7 @@ static int handler_pre_memfd(struct kprobe *p, struct pt_regs *regs)
     return 0;
 }
 
-// ---- 2) mprotect(addr, len, prot)  — log only when PROT_EXEC ----
+// ---- 2) mprotect(addr, len, prot) ----
 static struct kprobe kp_mprotect = { .symbol_name = "__x64_sys_mprotect" };
 
 static int handler_pre_mprotect(struct kprobe *p, struct pt_regs *regs)
@@ -338,9 +366,11 @@ int qks_syscalls_init(void)
     // execve / execveat
     kp_execve.pre_handler = handler_pre_exec;
     kp_execveat.pre_handler = handler_pre_exec;
+    kp_bprm.pre_handler = handler_pre_bprm;
 
     if ((ret = register_kprobe(&kp_execve))   != 0) return ret;
     (void)register_kprobe(&kp_execveat);
+    (void)register_kprobe(&kp_bprm);
 
     // memfd_create
     kp_memfd_create.pre_handler = handler_pre_memfd;
@@ -390,6 +420,7 @@ void qks_syscalls_exit(void)
     // Unregister everything
     unregister_kprobe(&kp_execve);
     unregister_kprobe(&kp_execveat);
+    unregister_kprobe(&kp_bprm);
 
     unregister_kprobe(&kp_memfd_create);
     unregister_kprobe(&kp_mprotect);

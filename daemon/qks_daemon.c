@@ -251,7 +251,6 @@ static void qks_hash_verdict_tuple(uint64_t event_id,
     memcpy(buf + off, domain, sizeof(domain) - 1);
     off += sizeof(domain) - 1;
 
-    // Emit fields in big-endian, fixed width
     uint64_t be_eid   = to_be64(event_id);
     uint64_t be_sec   = to_be64(ts_sec);
     uint32_t be_nsec  = htonl(ts_nsec);
