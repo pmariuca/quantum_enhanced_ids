@@ -1,0 +1,25 @@
+<div class="relative w-full">
+  <button
+    (click)="toggle()"
+    class="w-full flex items-center justify-between rounded-md border bg-[rgba(30,30,60,0.5)] border-[#d946ef]/40 px-3 py-2 text-sm text-foreground"
+  >
+    <span>{{ selectedLabel }}</span>
+    <lucide-icon name="chevron-down" class="w-4 h-4 opacity-50"></lucide-icon>
+  </button>
+
+  <div *ngIf="open"
+    class="absolute w-full bg-[rgba(20,20,40,0.9)] border border-[#d946ef]/30 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+    [ngClass]="openUpwards ? 'bottom-full mb-2' : 'top-full mt-2'">
+    <div *ngFor="let option of options"
+      (click)="select(option.value)"
+      class="px-3 py-2 text-sm cursor-pointer hover:bg-[#d946ef]/10 flex justify-between items-center">
+
+      <span>{{ option.label }}</span>
+
+      <lucide-icon *ngIf="value === option.value"
+        name="check"
+        class="w-4 h-4 text-primary">
+      </lucide-icon>
+    </div>
+  </div>
+</div>

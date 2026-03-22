@@ -1,0 +1,22 @@
+<div class="relative w-full">
+  <div class="h-4 w-full rounded-full bg-muted relative overflow-hidden">
+    <div
+      class="absolute h-full bg-primary"
+      [ngStyle]="{ width: percentage + '%' }">
+    </div>
+  </div>
+
+  <input
+    type="range"
+    [min]="min"
+    [max]="max"
+    [value]="value"
+    (input)="onChange($event)"
+    class="absolute top-0 left-0 w-full h-4 opacity-0 cursor-pointer"
+  />
+
+  <div
+    class="absolute top-1/2 -translate-y-1/2 size-4 rounded-full border border-primary bg-background shadow transition-all"
+    [ngStyle]="{ left: 'calc(' + percentage + '% - 8px)' }">
+  </div>
+</div>

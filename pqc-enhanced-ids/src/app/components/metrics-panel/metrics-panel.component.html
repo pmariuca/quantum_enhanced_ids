@@ -1,0 +1,95 @@
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="backdrop-blur-xl bg-card/40 border border-[#d946ef]/30 rounded-xl p-6 shadow-[0_0_30px_rgba(217,70,239,0.2)] hover:shadow-[0_0_40px_rgba(217,70,239,0.3)] transition-all">
+    <div class="flex justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-[#d946ef]/20 rounded-lg">
+          <lucide-icon name="cpu" class="w-5 h-5 text-primary"></lucide-icon>
+        </div>
+        <div>
+          <p class="text-xs text-muted-foreground">CPU Usage</p>
+          <p class="text-2xl font-bold">68%</p>
+        </div>
+      </div>
+
+      <div class="flex items-center text-accent text-sm">
+        <lucide-icon name="trending-up" class="w-4 h-4 mr-1"></lucide-icon>
+        +5%
+      </div>
+    </div>
+
+    <div class="mt-2 h-12">
+      <canvas id="cpuChart"></canvas>
+    </div>
+  </div>
+
+  <div class="backdrop-blur-xl bg-card/40 border border-[#8b5cf6]/30 rounded-xl p-6 shadow-[0_0_30px_rgba(139,92,246,0.2)] hover:shadow-[0_0_40px_rgba(139,92,246,0.2)] transition-all">
+    <div class="flex justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-[#8b5cf6]/20 rounded-lg">
+          <lucide-icon name="hard-drive" class="w-5 h-5 text-[#8b5cf6]"></lucide-icon>
+        </div>
+        <div>
+          <p class="text-xs text-muted-foreground">Memory</p>
+          <p class="text-2xl font-bold">12.4 GB</p>
+        </div>
+      </div>
+
+      <div class="flex items-center text-accent text-sm">
+        <lucide-icon name="trending-up" class="w-4 h-4 mr-1"></lucide-icon>
+        +2%
+      </div>
+    </div>
+
+    <div class="mt-2 h-12">
+      <canvas id="memChart"></canvas>
+    </div>
+  </div>
+
+  <div class="backdrop-blur-xl bg-card/40 border border-[#ff006e]/30 rounded-xl p-6 shadow-[0_0_30px_rgba(255,0,110,0.2)] hover:shadow-[0_0_40px_rgba(255,0,110,0.2)] transition-all">
+    <div class="flex justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-[#ff006e]/20 rounded-lg">
+          <lucide-icon name="shield" class="w-5 h-5 text-destructive"></lucide-icon>
+        </div>
+        <div>
+          <p class="text-xs text-muted-foreground">Threats Blocked</p>
+          <p class="text-2xl font-bold">247</p>
+        </div>
+      </div>
+
+      <div class="flex items-center text-accent text-sm">
+        <lucide-icon name="trending-down" class="w-4 h-4 mr-1"></lucide-icon>
+        -12%
+      </div>
+    </div>
+
+    <div class="mt-2 h-12">
+      <canvas id="threatChart"></canvas>
+    </div>
+  </div>
+
+  <div class="backdrop-blur-xl bg-card/40 border border-[#06b6d4]/30 rounded-xl p-6 shadow-[0_0_30px_rgba(0,206,255,0.2)] hover:shadow-[0_0_40px_rgba(0,206,255,0.2)] transition-all">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-[#06b6d4]/20 rounded-lg">
+          <lucide-icon name="activity" class="w-5 h-5 text-accent"></lucide-icon>
+        </div>
+        <div>
+          <p class="text-xs text-muted-foreground">System Health</p>
+          <p class="text-2xl font-bold">98.7%</p>
+        </div>
+      </div>
+
+      <span class="px-2 py-1 bg-[#06b6d4]/20 rounded text-accent text-sm">
+        Optimal
+      </span>
+    </div>
+
+    <div class="mt-2 h-12 flex items-end gap-1">
+      <div *ngFor="let h of [85,92,88,95,90,96,93,97,94,99,96,98]"
+        class="flex-1 bg-gradient-to-t from-accent to-accent/50 rounded-sm"
+        [style.height.%]="h">
+      </div>
+    </div>
+  </div>
+</div>

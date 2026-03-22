@@ -1,0 +1,14 @@
+<div
+  (click)="toggle()"
+  class="inline-flex h-[1.15rem] w-8 items-center rounded-full cursor-pointer transition-all"
+  [ngClass]="checked
+    ? 'bg-primary'
+    : 'bg-[rgba(122,122,191,0.5)]'">
+
+  <div
+    class="h-4 w-4 rounded-full bg-card transition-transform"
+    [ngClass]="checked
+      ? 'translate-x-[calc(100%-2px)]'
+      : 'translate-x-0'">
+  </div>
+</div>
