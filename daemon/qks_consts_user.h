@@ -5,6 +5,7 @@
 #define QKS_EVENT_SYSCALL    2
 #define QKS_EVENT_PACKET     3
 #define QKS_EVENT_DNS        4
+#define QKS_EVENT_PACKET_IN  5
 
 /* Syscall subtypes */
 /* Keep in sync with kernel */

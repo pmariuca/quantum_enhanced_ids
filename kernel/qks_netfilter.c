@@ -90,7 +90,7 @@ static int qks_dns_parse_qname(const unsigned char *buf, int len, char *out, int
     return i + 4; // Skip QTYPE (2 bytes) + QCLASS (2 bytes)
 }
 
-static struct nf_hook_ops qks_nf_ops[2];
+static struct nf_hook_ops qks_nf_ops[3];
 
 // Hook: outbound SYN only
 static unsigned int qks_nf_hook(void *priv,
@@ -157,6 +157,87 @@ static unsigned int qks_nf_hook(void *priv,
     qks_get_exec_path_from_socket(skb, msg.pkt_exec_path, sizeof(msg.pkt_exec_path));
 
     msg.reserved1 = *((u8 *)tcph + 13);  // TCP flags byte
+
+    qks_send_msg(&msg);
+    return NF_ACCEPT;
+}
+
+
+// Hook: inbound packets
+static unsigned int qks_nf_hook_in(void *priv,
+                                   struct sk_buff *skb,
+                                   const struct nf_hook_state *state)
+{
+    if (!skb)
+        return NF_ACCEPT;
+
+    if (state->hook != NF_INET_LOCAL_IN)
+        return NF_ACCEPT;
+
+    const struct iphdr *iph = ip_hdr(skb);
+    if (!iph || iph->version != 4)
+        return NF_ACCEPT;
+
+    u16 srcp = 0, dstp = 0;
+    u8 tcp_flags = 0;
+
+    if (iph->protocol == IPPROTO_TCP) {
+        const struct tcphdr *tcph =
+            (const struct tcphdr *)((u8 *)iph + iph->ihl * 4);
+        if (!tcph)
+            return NF_ACCEPT;
+
+        srcp = ntohs(tcph->source);
+        dstp = ntohs(tcph->dest);
+        tcp_flags = *((u8 *)tcph + 13);
+
+        // Filter: only SYN packets (potential connection attempts)
+        if (!(tcph->syn))
+            return NF_ACCEPT;
+
+    } else if (iph->protocol == IPPROTO_UDP) {
+        const struct udphdr *udph =
+            (const struct udphdr *)((u8 *)iph + iph->ihl * 4);
+        if (!udph)
+            return NF_ACCEPT;
+
+        srcp = ntohs(udph->source);
+        dstp = ntohs(udph->dest);
+    } else {
+        return NF_ACCEPT;
+    }
+
+    // Check drop list for incoming packets
+    if (qks_drop_should_block(0, ntohl(iph->saddr), srcp, iph->protocol)) {
+        qks_log("NF_DROP (drop-list): incoming src=%pI4:%u proto=%u",
+                &iph->saddr, srcp, iph->protocol);
+        return NF_DROP;
+    }
+
+    // suspicious ports only
+    if (!is_suspicious_port(srcp) && !is_suspicious_port(dstp))
+        return NF_ACCEPT;
+
+    // Build message for incoming packet
+    struct qks_event_msg msg = {0};
+
+    msg.schema_version = QKS_SCHEMA_V1;
+    msg.event_type     = QKS_EVENT_PACKET_IN;
+    msg.timestamp_ns   = ktime_get_ns();
+    msg.event_id       = qks_next_id();
+
+    msg.packet_src_ip   = ntohl(iph->saddr);
+    msg.packet_dst_ip   = ntohl(iph->daddr);
+    msg.packet_src_port = srcp;
+    msg.packet_dst_port = dstp;
+    msg.packet_protocol = iph->protocol;
+    msg.packet_len      = ntohs(iph->tot_len);
+
+    msg.pkt_pid = 0;  // Incoming packets don't have a local process yet
+    msg.pkt_uid = 0;
+    msg.pkt_exec_path[0] = '\0';
+
+    msg.reserved1 = tcp_flags;
 
     qks_send_msg(&msg);
     return NF_ACCEPT;
@@ -255,22 +336,26 @@ static unsigned int qks_dns_hook(void *priv,
 
 int qks_netfilter_init(void)
 {
-    qks_nf_ops[0].hook     = qks_nf_hook;   // TCP SYN sensor
+    qks_nf_ops[0].hook     = qks_nf_hook;   // TCP SYN sensor (outbound)
     qks_nf_ops[0].pf       = NFPROTO_IPV4;
     qks_nf_ops[0].hooknum  = NF_INET_LOCAL_OUT;
     qks_nf_ops[0].priority = NF_IP_PRI_FIRST;
 
-    qks_nf_ops[1].hook     = qks_dns_hook;  // DNS sensor
+    qks_nf_ops[1].hook     = qks_dns_hook;  // DNS sensor (outbound)
     qks_nf_ops[1].pf       = NFPROTO_IPV4;
     qks_nf_ops[1].hooknum  = NF_INET_LOCAL_OUT;
     qks_nf_ops[1].priority = NF_IP_PRI_FIRST;
 
+    qks_nf_ops[2].hook     = qks_nf_hook_in;  // Incoming packet sensor
+    qks_nf_ops[2].pf       = NFPROTO_IPV4;
+    qks_nf_ops[2].hooknum  = NF_INET_LOCAL_IN;
+    qks_nf_ops[2].priority = NF_IP_PRI_FIRST;
 
-    nf_register_net_hooks(&init_net, qks_nf_ops, 2);
+    nf_register_net_hooks(&init_net, qks_nf_ops, 3);
     return 0;
 }
 
 void qks_netfilter_exit(void)
 {
-    nf_unregister_net_hooks(&init_net, qks_nf_ops, 2);
+    nf_unregister_net_hooks(&init_net, qks_nf_ops, 3);
 }

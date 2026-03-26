@@ -278,6 +278,51 @@
     ]
   },
 
+  "packet_in": {
+    "__comment": "Incoming packet rules",
+
+    "deny": [
+      {
+        "proto": "tcp",
+        "tcp_flags_any": ["syn"],
+        "dst_ports_any": [22, 23, 3389],
+        "reason": "incoming_connection_to_high_risk_port"
+      },
+      {
+        "proto": "tcp",
+        "src_ip_prefix_any": ["10.0.0.", "172.16.", "192.168."],
+        "tcp_flags_any": ["syn"],
+        "dst_ports_any": [445],
+        "reason": "internal_smb_connection_attempt"
+      }
+    ],
+
+    "allow": [
+      {
+        "proto": "tcp",
+        "dst_ports_any": [80, 443, 8080],
+        "reason": "incoming_web_traffic"
+      },
+      {
+        "proto": "udp",
+        "dst_ports_any": [53],
+        "reason": "incoming_dns_response"
+      }
+    ],
+
+    "ml": [
+      {
+        "proto": "tcp",
+        "tcp_flags_any": ["syn"],
+        "reason": "unknown_incoming_tcp_connection"
+      },
+      {
+        "proto": "udp",
+        "reason": "unknown_incoming_udp_packet"
+      }
+    ]
+  },
+
   "behavior": {
     "__comment": "High-level behavioral rules",
 

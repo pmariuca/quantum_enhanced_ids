@@ -166,12 +166,13 @@ static inline bool json_suppress_log(const cJSON *rule) {
 /* UID constraints:
  * - "uid_in": [ints]
  * - "uid_not": int
- * For EXEC/SYSCALL → ev->uid. For PACKET/DNS → ev->pkt_uid.
+ * For EXEC/SYSCALL → ev->uid. For PACKET/DNS/PACKET_IN → ev->pkt_uid.
  */
 static bool match_uid_constraints(const cJSON *rule, const struct qks_event_msg *ev)
 {
     uint32_t uid = 0;
-    if (ev->event_type == QKS_EVENT_PACKET || ev->event_type == QKS_EVENT_DNS)
+    if (ev->event_type == QKS_EVENT_PACKET || ev->event_type == QKS_EVENT_DNS ||
+        ev->event_type == QKS_EVENT_PACKET_IN)
         uid = ev->pkt_uid;
     else
         uid = ev->uid;
@@ -368,6 +369,94 @@ static bool match_packet_rule(const cJSON *rule, const struct qks_event_msg *ev)
         bool ok = false;
         const cJSON *it = NULL;
         cJSON_ArrayForEach(it, dip) {
+            if (cJSON_IsString(it) && str_startswith(ipstr, it->valuestring)) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) return false;
+    }
+
+    return true;
+}
+
+/* =============== PACKET_IN match (incoming) ================= */
+static bool match_packet_in_rule(const cJSON *rule, const struct qks_event_msg *ev)
+{
+    if (ev->event_type != QKS_EVENT_PACKET_IN)
+        return false;
+
+    /* No UID constraints for incoming packets (pkt_uid is 0) */
+
+    /* Optional any:true */
+    if (get_any_bool(rule)) return true;
+
+    /* proto */
+    const cJSON *proto = cJSON_GetObjectItemCaseSensitive(rule, "proto");
+    if (proto && cJSON_IsString(proto)) {
+        if ((strcmp(proto->valuestring, "tcp") == 0 && ev->packet_protocol != IPPROTO_TCP) ||
+            (strcmp(proto->valuestring, "udp") == 0 && ev->packet_protocol != IPPROTO_UDP) ||
+            (strcmp(proto->valuestring, "icmp") == 0 && ev->packet_protocol != IPPROTO_ICMP))
+            return false;
+    }
+
+    /* src_ports_any (for incoming, source port from remote) */
+    const cJSON *spa = cJSON_GetObjectItemCaseSensitive(rule, "src_ports_any");
+    if (spa && cJSON_IsArray(spa)) {
+        bool ok = false;
+        uint16_t s = ev->packet_src_port;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, spa) {
+            if (cJSON_IsNumber(it) && (uint16_t)it->valuedouble == s) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) return false;
+    }
+
+    /* dst_ports_any (local listening port) */
+    const cJSON *dpa = cJSON_GetObjectItemCaseSensitive(rule, "dst_ports_any");
+    if (dpa && cJSON_IsArray(dpa)) {
+        bool ok = false;
+        uint16_t d = ev->packet_dst_port;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, dpa) {
+            if (cJSON_IsNumber(it) && (uint16_t)it->valuedouble == d) {
+                ok = true;
+                break;
+            }
+        }
+        if (!ok) return false;
+    }
+
+    /* tcp_flags_any */
+    const cJSON *tfa = cJSON_GetObjectItemCaseSensitive(rule, "tcp_flags_any");
+    if (tfa && cJSON_IsArray(tfa)) {
+        if (ev->packet_protocol != IPPROTO_TCP) return false;
+        uint8_t f = ev->reserved1;
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, tfa) {
+            if (!cJSON_IsString(it)) continue;
+            if (strcmp(it->valuestring, "syn") == 0 && (f & TH_SYN)) ok = true;
+            if (strcmp(it->valuestring, "ack") == 0 && (f & TH_ACK)) ok = true;
+            if (strcmp(it->valuestring, "rst") == 0 && (f & TH_RST)) ok = true;
+            if (strcmp(it->valuestring, "fin") == 0 && (f & TH_FIN)) ok = true;
+            if (ok) break;
+        }
+        if (!ok) return false;
+    }
+
+    /* src_ip_prefix_any (remote IP prefix) */
+    const cJSON *sip = cJSON_GetObjectItemCaseSensitive(rule, "src_ip_prefix_any");
+    if (sip && cJSON_IsArray(sip)) {
+        char ipstr[INET_ADDRSTRLEN];
+        if (!ip_to_str(ev->packet_src_ip, ipstr)) return false;
+
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, sip) {
             if (cJSON_IsString(it) && str_startswith(ipstr, it->valuestring)) {
                 ok = true;
                 break;
@@ -586,10 +675,11 @@ static enum qks_policy_result eval_section(const cJSON *section,
         cJSON_ArrayForEach(rule, deny) {
             bool match = false;
             switch (ev->event_type) {
-                case QKS_EVENT_EXEC:    match = match_exec_rule(rule, ev);    break;
-                case QKS_EVENT_PACKET:  match = match_packet_rule(rule, ev);  break;
-                case QKS_EVENT_DNS:     match = match_dns_rule(rule, ev);     break;
-                case QKS_EVENT_SYSCALL: match = match_syscall_rule(rule, ev); break;
+                case QKS_EVENT_EXEC:      match = match_exec_rule(rule, ev);      break;
+                case QKS_EVENT_PACKET:    match = match_packet_rule(rule, ev);    break;
+                case QKS_EVENT_PACKET_IN: match = match_packet_in_rule(rule, ev); break;
+                case QKS_EVENT_DNS:       match = match_dns_rule(rule, ev);       break;
+                case QKS_EVENT_SYSCALL:   match = match_syscall_rule(rule, ev);   break;
                 default: break;
             }
             if (match) {
@@ -608,10 +698,11 @@ static enum qks_policy_result eval_section(const cJSON *section,
         cJSON_ArrayForEach(rule, allow) {
             bool match = false;
             switch (ev->event_type) {
-                case QKS_EVENT_EXEC:    match = match_exec_rule(rule, ev);    break;
-                case QKS_EVENT_PACKET:  match = match_packet_rule(rule, ev);  break;
-                case QKS_EVENT_DNS:     match = match_dns_rule(rule, ev);     break;
-                case QKS_EVENT_SYSCALL: match = match_syscall_rule(rule, ev); break;
+                case QKS_EVENT_EXEC:      match = match_exec_rule(rule, ev);      break;
+                case QKS_EVENT_PACKET:    match = match_packet_rule(rule, ev);    break;
+                case QKS_EVENT_PACKET_IN: match = match_packet_in_rule(rule, ev); break;
+                case QKS_EVENT_DNS:       match = match_dns_rule(rule, ev);       break;
+                case QKS_EVENT_SYSCALL:   match = match_syscall_rule(rule, ev);   break;
                 default: break;
             }
             if (match) {
@@ -630,10 +721,11 @@ static enum qks_policy_result eval_section(const cJSON *section,
         cJSON_ArrayForEach(rule, ml) {
             bool match = false;
             switch (ev->event_type) {
-                case QKS_EVENT_EXEC:    match = match_exec_rule(rule, ev);    break;
-                case QKS_EVENT_PACKET:  match = match_packet_rule(rule, ev);  break;
-                case QKS_EVENT_DNS:     match = match_dns_rule(rule, ev);     break;
-                case QKS_EVENT_SYSCALL: match = match_syscall_rule(rule, ev); break;
+                case QKS_EVENT_EXEC:      match = match_exec_rule(rule, ev);      break;
+                case QKS_EVENT_PACKET:    match = match_packet_rule(rule, ev);    break;
+                case QKS_EVENT_PACKET_IN: match = match_packet_in_rule(rule, ev); break;
+                case QKS_EVENT_DNS:       match = match_dns_rule(rule, ev);       break;
+                case QKS_EVENT_SYSCALL:   match = match_syscall_rule(rule, ev);   break;
                 default: break;
             }
             if (match) {
@@ -692,10 +784,11 @@ enum qks_policy_result qks_policy_eval(const struct qks_event_msg *ev,
     /* Section by event_type */
     const cJSON *section = NULL;
     switch (ev->event_type) {
-        case QKS_EVENT_EXEC:    section = cJSON_GetObjectItemCaseSensitive(policy_root, "exec");    break;
-        case QKS_EVENT_PACKET:  section = cJSON_GetObjectItemCaseSensitive(policy_root, "packet");  break;
-        case QKS_EVENT_DNS:     section = cJSON_GetObjectItemCaseSensitive(policy_root, "dns");     break;
-        case QKS_EVENT_SYSCALL: section = cJSON_GetObjectItemCaseSensitive(policy_root, "syscall"); break;
+        case QKS_EVENT_EXEC:      section = cJSON_GetObjectItemCaseSensitive(policy_root, "exec");      break;
+        case QKS_EVENT_PACKET:    section = cJSON_GetObjectItemCaseSensitive(policy_root, "packet");    break;
+        case QKS_EVENT_PACKET_IN: section = cJSON_GetObjectItemCaseSensitive(policy_root, "packet_in"); break;
+        case QKS_EVENT_DNS:       section = cJSON_GetObjectItemCaseSensitive(policy_root, "dns");       break;
+        case QKS_EVENT_SYSCALL:   section = cJSON_GetObjectItemCaseSensitive(policy_root, "syscall");   break;
         default: section = NULL; break;
     }
 

@@ -89,11 +89,12 @@ static void on_sigint(int signo) {
 // ------------------------- PRINTING -------------------------
 static const char* evt_type_str(uint8_t t) {
     switch (t) {
-        case QKS_EVENT_EXEC:    return "EXEC";
-        case QKS_EVENT_SYSCALL: return "SYSCALL";
-        case QKS_EVENT_PACKET:  return "PACKET";
-        case QKS_EVENT_DNS:     return "DNS";
-        default:                return "UNKNOWN";
+        case QKS_EVENT_EXEC:      return "EXEC";
+        case QKS_EVENT_SYSCALL:   return "SYSCALL";
+        case QKS_EVENT_PACKET:    return "PACKET";
+        case QKS_EVENT_DNS:       return "DNS";
+        case QKS_EVENT_PACKET_IN: return "PACKET_IN";
+        default:                  return "UNKNOWN";
     }
 }
 
@@ -181,6 +182,24 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
         fprintf(f, "\"dst_ip\":\"%s\",", dip);
         fprintf(f, "\"dst_port\":%u,", ev->packet_dst_port);
         fprintf(f, "\"protocol\":%u,", ev->packet_protocol);
+        fprintf(f, "\"len\":%u", ev->packet_len);
+        fprintf(f, "}");
+    }
+
+    if (ev->event_type == QKS_EVENT_PACKET_IN) {
+        char sip[INET_ADDRSTRLEN], dip[INET_ADDRSTRLEN];
+        uint32_t src_be = htonl(ev->packet_src_ip);
+        uint32_t dst_be = htonl(ev->packet_dst_ip);
+        inet_ntop(AF_INET, &src_be, sip, sizeof(sip));
+        inet_ntop(AF_INET, &dst_be, dip, sizeof(dip));
+
+        fprintf(f, "\"packet_in\":{");
+        fprintf(f, "\"src_ip\":\"%s\",", sip);
+        fprintf(f, "\"src_port\":%u,", ev->packet_src_port);
+        fprintf(f, "\"dst_ip\":\"%s\",", dip);
+        fprintf(f, "\"dst_port\":%u,", ev->packet_dst_port);
+        fprintf(f, "\"protocol\":%u,", ev->packet_protocol);
+        fprintf(f, "\"tcp_flags\":\"0x%02x\",", ev->reserved1);
         fprintf(f, "\"len\":%u", ev->packet_len);
         fprintf(f, "}");
     }
