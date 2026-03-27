@@ -11,6 +11,7 @@
 #include <arpa/inet.h>          // inet_ntop
 #include <netinet/in.h>         // IPPROTO_*
 #include <netinet/tcp.h>        // TH_SYN, TH_ACK, ...
+#include <sys/socket.h>         // AF_*, SOCK_*
 #include <sys/mman.h>           // PROT_EXEC, PROT_WRITE
 #include <sched.h>              // CLONE_* (for clone/setns flags)
 #include <fnmatch.h>
@@ -543,6 +544,73 @@ static bool match_syscall_rule(const cJSON *rule, const struct qks_event_msg *ev
             return false;
         if (strcmp(sub->valuestring, "SETNS") == 0      && ev->sc_subtype != QKS_SC_SETNS)
             return false;
+        if (strcmp(sub->valuestring, "SOCKET_CREATE") == 0 && ev->sc_subtype != QKS_SC_SOCKET_CREATE)
+            return false;
+    }
+
+    /* socket() helpers: arg0=domain, arg1=type(+flags), arg2=protocol */
+    const uint32_t sock_domain = ev->sc_arg0_u32;
+    const uint32_t sock_type_all = ev->sc_arg1_u32;
+    const uint32_t sock_type = sock_type_all & 0x0f;
+    const uint32_t sock_proto = ev->sc_arg2_u32;
+
+    const cJSON *raw_only = cJSON_GetObjectItemCaseSensitive(rule, "raw_only");
+    if (raw_only && cJSON_IsBool(raw_only) && cJSON_IsTrue(raw_only)) {
+        if (sock_type != SOCK_RAW)
+            return false;
+    }
+
+    const cJSON *sda = cJSON_GetObjectItemCaseSensitive(rule, "sock_domain_any");
+    if (sda && cJSON_IsArray(sda)) {
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, sda) {
+            if (!cJSON_IsString(it)) continue;
+            if (strcmp(it->valuestring, "AF_INET") == 0 && sock_domain == AF_INET) ok = true;
+            if (strcmp(it->valuestring, "AF_INET6") == 0 && sock_domain == AF_INET6) ok = true;
+#ifdef AF_PACKET
+            if (strcmp(it->valuestring, "AF_PACKET") == 0 && sock_domain == AF_PACKET) ok = true;
+#endif
+#ifdef AF_UNIX
+            if (strcmp(it->valuestring, "AF_UNIX") == 0 && sock_domain == AF_UNIX) ok = true;
+#endif
+#ifdef AF_NETLINK
+            if (strcmp(it->valuestring, "AF_NETLINK") == 0 && sock_domain == AF_NETLINK) ok = true;
+#endif
+            if (ok) break;
+        }
+        if (!ok) return false;
+    }
+
+    const cJSON *sta = cJSON_GetObjectItemCaseSensitive(rule, "sock_type_any");
+    if (sta && cJSON_IsArray(sta)) {
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, sta) {
+            if (!cJSON_IsString(it)) continue;
+            if (strcmp(it->valuestring, "SOCK_STREAM") == 0 && sock_type == SOCK_STREAM) ok = true;
+            if (strcmp(it->valuestring, "SOCK_DGRAM") == 0 && sock_type == SOCK_DGRAM) ok = true;
+            if (strcmp(it->valuestring, "SOCK_RAW") == 0 && sock_type == SOCK_RAW) ok = true;
+            if (ok) break;
+        }
+        if (!ok) return false;
+    }
+
+    const cJSON *spa = cJSON_GetObjectItemCaseSensitive(rule, "sock_proto_any");
+    if (spa && cJSON_IsArray(spa)) {
+        bool ok = false;
+        const cJSON *it = NULL;
+        cJSON_ArrayForEach(it, spa) {
+            if (!cJSON_IsString(it)) continue;
+            if (strcmp(it->valuestring, "IPPROTO_TCP") == 0 && sock_proto == IPPROTO_TCP) ok = true;
+            if (strcmp(it->valuestring, "IPPROTO_UDP") == 0 && sock_proto == IPPROTO_UDP) ok = true;
+            if (strcmp(it->valuestring, "IPPROTO_ICMP") == 0 && sock_proto == IPPROTO_ICMP) ok = true;
+#ifdef IPPROTO_ICMPV6
+            if (strcmp(it->valuestring, "IPPROTO_ICMPV6") == 0 && sock_proto == IPPROTO_ICMPV6) ok = true;
+#endif
+            if (ok) break;
+        }
+        if (!ok) return false;
     }
 
     /* prot_any: ["PROT_EXEC","PROT_WRITE"] */

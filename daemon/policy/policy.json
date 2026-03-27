@@ -178,9 +178,11 @@
 
     "deny": [
       {
-        "subtype": "PRIV_CHANGE",
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_INET", "AF_INET6", "AF_PACKET"],
+        "raw_only": true,
         "uid_not": 0,
-        "reason": "unprivileged_privilege_change"
+        "reason": "unprivileged_raw_socket_creation"
       },
       {
         "subtype": "MPROTECT_X",
@@ -198,6 +200,18 @@
 
     "allow": [
       {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_NETLINK"],
+        "sock_type_any": ["SOCK_RAW"],
+        "reason": "system_netlink_socket"
+      },
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_INET", "AF_INET6", "AF_UNIX"],
+        "sock_type_any": ["SOCK_STREAM", "SOCK_DGRAM"],
+        "reason": "normal_socket_creation"
+      },
+      {
         "subtype": "CLONE_FAMILY",
         "flags_none": ["CLONE_NEWUSER"],
         "reason": "normal_thread_creation"
@@ -210,6 +224,22 @@
     ],
 
     "ml": [
+      {
+        "subtype": "PRIV_CHANGE",
+        "uid_not": 0,
+        "reason": "unprivileged_privilege_change"
+      },
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_INET", "AF_INET6", "AF_PACKET"],
+        "raw_only": true,
+        "reason": "raw_socket_creation_requires_review"
+      },
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_PACKET"],
+        "reason": "packet_socket_creation"
+      },
       {
         "subtype": "CLONE_FAMILY",
         "flags_any": ["CLONE_NEWUSER"],

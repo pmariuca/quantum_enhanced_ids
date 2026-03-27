@@ -11,6 +11,7 @@
 #include <linux/uidgid.h>
 #include <linux/uaccess.h>
 #include <linux/mman.h>       // PROT_*
+#include <linux/socket.h>
 #include <linux/ktime.h>
 #include <linux/atomic.h>
 #include <asm/unistd.h>
@@ -54,7 +55,7 @@ static void qks_fill_common(struct qks_event_msg *m, __u8 subtype, __u32 sc_nr)
 
     m->pid  = current->pid;
     m->ppid = task_ppid_nr(current);
-    m->uid  = __kuid_val(current_uid());
+    m->uid  = __kuid_val(current_euid());
 
     m->sc_subtype = subtype;
     m->sc_nr      = sc_nr;
@@ -76,6 +77,30 @@ static inline bool qks_str_has_prefix(const char *s, const char *pfx)
     return strncmp(s, pfx, n) == 0;
 }
 
+static int qks_register_kprobe_any(struct kprobe *kp,
+                                   kprobe_pre_handler_t handler,
+                                   const char *const *symbols,
+                                   size_t count)
+{
+    size_t i;
+    int ret = -ENOENT;
+
+    kp->pre_handler = handler;
+
+    for (i = 0; i < count; i++) {
+        kp->symbol_name = symbols[i];
+        ret = register_kprobe(kp);
+        if (ret == 0) {
+            qks_log("Registered kprobe for %s\n", kp->symbol_name);
+            return 0;
+        }
+        qks_log("kprobe registration failed for %s ret=%d\n", kp->symbol_name, ret);
+    }
+
+    qks_log("Failed to register kprobe for requested symbols (last ret=%d)\n", ret);
+    return ret;
+}
+
 static struct kprobe kp_execve   = { .symbol_name = "__x64_sys_execve"   };
 static struct kprobe kp_execveat = { .symbol_name = "__x64_sys_execveat" };
 static struct kprobe kp_bprm = { .symbol_name = "security_bprm_check" };
@@ -95,7 +120,7 @@ static int handler_pre_exec(struct kprobe *p, struct pt_regs *regs)
         msg.event_id       = qks_next_id();
         msg.pid            = current->pid;
         msg.ppid           = task_ppid_nr(current);
-        msg.uid            = __kuid_val(current_uid());
+        msg.uid            = __kuid_val(current_euid());
         msg.exec_path[0]   = '\0';
         qks_send_msg(&msg);
         return 0;
@@ -110,7 +135,7 @@ static int handler_pre_exec(struct kprobe *p, struct pt_regs *regs)
         msg.event_id       = qks_next_id();
         msg.pid            = current->pid;
         msg.ppid           = task_ppid_nr(current);
-        msg.uid            = __kuid_val(current_uid());
+        msg.uid            = __kuid_val(current_euid());
 
         if (!IS_ERR(path))
             strscpy(msg.exec_path, path, sizeof(msg.exec_path));
@@ -137,7 +162,7 @@ static int handler_pre_bprm(struct kprobe *p, struct pt_regs *regs)
     msg.event_id       = qks_next_id();
     msg.pid            = current->pid;
     msg.ppid           = task_ppid_nr(current);
-    msg.uid            = __kuid_val(current_uid());
+    msg.uid            = __kuid_val(current_euid());
 
     if (bprm && bprm->file) {
         path = d_path(&bprm->file->f_path, tmp, sizeof(tmp));
@@ -270,6 +295,7 @@ static struct kprobe kp_clone = { .symbol_name = "kernel_clone" };
 static struct kprobe kp_clone3  = { .symbol_name = "__x64_sys_clone3" };
 static struct kprobe kp_unshare = { .symbol_name = "__x64_sys_unshare" };
 static struct kprobe kp_setns = { .symbol_name = "__x64_sys_setns" };
+static struct kprobe kp_socket = { .symbol_name = "__x64_sys_socket" };
 
 
 static int handler_pre_kernel_clone(struct kprobe *p, struct pt_regs *regs)
@@ -358,10 +384,33 @@ static int handler_pre_setns(struct kprobe *p, struct pt_regs *regs)
     return 0;
 }
 
+// ---- 6) socket(domain, type, protocol) ----
+static int handler_pre_socket(struct kprobe *p, struct pt_regs *regs)
+{
+    struct qks_event_msg msg;
+    __u32 domain   = (__u32)ARG0(regs);
+    __u32 type_all = (__u32)ARG1(regs);
+    __u32 protocol = (__u32)ARG2(regs);
+
+    qks_fill_common(&msg, QKS_SC_SOCKET_CREATE, __NR_socket);
+    msg.sc_arg0_u32 = domain;
+    msg.sc_arg1_u32 = type_all;
+    msg.sc_arg2_u32 = protocol;
+
+    qks_send_msg(&msg);
+    return 0;
+}
+
 // ---- Module init/exit: register all hooks ----
 int qks_syscalls_init(void)
 {
     int ret;
+    static const char *const socket_symbols[] = {
+        "security_socket_create",
+        "__x64_sys_socket",
+        "__sys_socket_create",
+        "__sys_socket",
+    };
 
     // execve / execveat
     kp_execve.pre_handler = handler_pre_exec;
@@ -402,11 +451,17 @@ int qks_syscalls_init(void)
     kp_clone3.pre_handler = handler_pre_clone3;
     kp_unshare.pre_handler = handler_pre_unshare;
     kp_setns.pre_handler = handler_pre_setns;
+    kp_socket.pre_handler = handler_pre_socket;
 
     if ((ret = register_kprobe(&kp_clone)) != 0) goto fail;
     (void)register_kprobe(&kp_clone3);
     if ((ret = register_kprobe(&kp_unshare)) != 0) goto fail;
     if ((ret = register_kprobe(&kp_setns)) != 0) goto fail;
+    if ((ret = qks_register_kprobe_any(&kp_socket,
+                                       handler_pre_socket,
+                                       socket_symbols,
+                                       ARRAY_SIZE(socket_symbols))) != 0)
+        goto fail;
 
     return 0;
 
@@ -436,4 +491,5 @@ void qks_syscalls_exit(void)
     unregister_kprobe(&kp_clone3);
     unregister_kprobe(&kp_unshare);
     unregister_kprobe(&kp_setns);
+    unregister_kprobe(&kp_socket);
 }

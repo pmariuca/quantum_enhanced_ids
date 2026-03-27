@@ -16,3 +16,4 @@
 #define QKS_SC_CLONE_FAMILY  5
 #define QKS_SC_UNSHARE       6
 #define QKS_SC_SETNS         7
+#define QKS_SC_SOCKET_CREATE 8

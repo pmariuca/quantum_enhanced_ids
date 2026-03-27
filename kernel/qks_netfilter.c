@@ -153,7 +153,7 @@ static unsigned int qks_nf_hook(void *priv,
     msg.packet_len      = ntohs(iph->tot_len);
 
     msg.pkt_pid = current->pid;
-    msg.pkt_uid = current_uid().val;
+    msg.pkt_uid = current_euid().val;
     qks_get_exec_path_from_socket(skb, msg.pkt_exec_path, sizeof(msg.pkt_exec_path));
 
     msg.reserved1 = *((u8 *)tcph + 13);  // TCP flags byte
@@ -322,7 +322,7 @@ static unsigned int qks_dns_hook(void *priv,
     msg.packet_len      = ntohs(udph->len);
 
     msg.pkt_pid = current->pid;
-    msg.pkt_uid = current_uid().val;
+    msg.pkt_uid = current_euid().val;
 
     qks_get_exec_path_from_socket(skb, msg.pkt_exec_path, sizeof(msg.pkt_exec_path));
 

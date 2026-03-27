@@ -218,11 +218,20 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
     }
 
     if (ev->event_type == QKS_EVENT_SYSCALL) {
+        uint32_t sock_type = ev->sc_arg1_u32 & 0x0f;
         fprintf(f, "\"syscall\":{");
         fprintf(f, "\"nr\":%u,", ev->sc_nr);
         fprintf(f, "\"subtype\":%u,", ev->sc_subtype);
         fprintf(f, "\"flags\":\"0x%lx\",", ev->sc_flags);
-        fprintf(f, "\"prot\":\"0x%x\"", ev->sc_prot);
+        fprintf(f, "\"prot\":\"0x%x\",", ev->sc_prot);
+        fprintf(f, "\"arg0\":%u,", ev->sc_arg0_u32);
+        fprintf(f, "\"arg1\":%u,", ev->sc_arg1_u32);
+        fprintf(f, "\"arg2\":%u,", ev->sc_arg2_u32);
+        fprintf(f, "\"arg_str\":\"%s\",", ev->sc_str);
+        fprintf(f, "\"sock_domain\":%u,", ev->sc_arg0_u32);
+        fprintf(f, "\"sock_type\":%u,", sock_type);
+        fprintf(f, "\"sock_type_with_flags\":%u,", ev->sc_arg1_u32);
+        fprintf(f, "\"sock_protocol\":%u", ev->sc_arg2_u32);
         fprintf(f, "}");
     }
 

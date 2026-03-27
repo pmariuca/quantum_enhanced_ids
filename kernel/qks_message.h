@@ -23,6 +23,7 @@
 #define QKS_SC_CLONE_FAMILY   5   // clone / clone3
 #define QKS_SC_UNSHARE        6
 #define QKS_SC_SETNS          7
+#define QKS_SC_SOCKET_CREATE  8
 
 struct qks_event_msg {
     __u8  schema_version;
