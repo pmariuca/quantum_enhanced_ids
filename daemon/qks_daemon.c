@@ -167,6 +167,9 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
     // structured event fields
     if (ev->event_type == QKS_EVENT_EXEC) {
         fprintf(f, "\"exec\":{");
+        fprintf(f, "\"pid\":%u,", ev->pid);
+        fprintf(f, "\"ppid\":%u,", ev->ppid);
+        fprintf(f, "\"uid\":%u,", ev->uid);
         fprintf(f, "\"path\":\"%s\"", ev->exec_path);
         fprintf(f, "}");
     }
@@ -177,6 +180,9 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
         inet_ntop(AF_INET, &ev->packet_dst_ip, dip, sizeof(dip));
 
         fprintf(f, "\"packet\":{");
+        fprintf(f, "\"pid\":%u,", ev->pkt_pid);
+        fprintf(f, "\"uid\":%u,", ev->pkt_uid);
+        fprintf(f, "\"exec_path\":\"%s\",", ev->pkt_exec_path);
         fprintf(f, "\"src_ip\":\"%s\",", sip);
         fprintf(f, "\"src_port\":%u,", ev->packet_src_port);
         fprintf(f, "\"dst_ip\":\"%s\",", dip);
@@ -210,6 +216,9 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
         inet_ntop(AF_INET, &ev->packet_dst_ip, dip, sizeof(dip));
 
         fprintf(f, "\"dns\":{");
+        fprintf(f, "\"pid\":%u,", ev->pkt_pid);
+        fprintf(f, "\"uid\":%u,", ev->pkt_uid);
+        fprintf(f, "\"exec_path\":\"%s\",", ev->pkt_exec_path);
         fprintf(f, "\"src_ip\":\"%s\",", sip);
         fprintf(f, "\"dst_ip\":\"%s\",", dip);
         fprintf(f, "\"qname\":\"%s\",", ev->dns_qname);
@@ -220,6 +229,10 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
     if (ev->event_type == QKS_EVENT_SYSCALL) {
         uint32_t sock_type = ev->sc_arg1_u32 & 0x0f;
         fprintf(f, "\"syscall\":{");
+        fprintf(f, "\"pid\":%u,", ev->pid);
+        fprintf(f, "\"ppid\":%u,", ev->ppid);
+        fprintf(f, "\"uid\":%u,", ev->uid);
+        fprintf(f, "\"exec_path\":\"%s\",", ev->exec_path);
         fprintf(f, "\"nr\":%u,", ev->sc_nr);
         fprintf(f, "\"subtype\":%u,", ev->sc_subtype);
         fprintf(f, "\"flags\":\"0x%lx\",", ev->sc_flags);
