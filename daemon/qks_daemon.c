@@ -29,6 +29,9 @@
 #include "syscalls.h"
 #include "policy.h"
 
+#include "ml_service/ml_buffer.h"
+#include "ml_service/ml_client.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -476,6 +479,23 @@ static void *worker_thread_main(void *arg)
         bool suppress_log = false;
         enum qks_policy_result pol = qks_policy_eval(ev, &pol_reason, &suppress_log);
 
+        uint32_t ev_pid = (ev->event_type == QKS_EVENT_PACKET || 
+                   ev->event_type == QKS_EVENT_DNS)
+                  ? ev->pkt_pid : ev->pid;
+        ml_pid_buffer_t *buf = ml_buf_get(ev_pid, ev->timestamp_ns);
+        ml_buf_update(buf, ev);
+
+        if (pol == QKS_POLICY_UNKNOWN) {
+            printf("[DAEMON DEBUG] buf=%p, calling ml_client_infer...\n", (void*)buf);
+            float prob = ml_client_infer(buf);
+            printf("[DAEMON DEBUG] ml_client returned prob=%.4f\n", prob);
+            
+            if (prob >= 0.0f) {
+                pol = (prob > 0.7f) ? QKS_POLICY_DENY : QKS_POLICY_ALLOW;
+                pol_reason = (prob > 0.7f) ? "ml_anomaly" : "ml_benign";
+            }
+        }
+
         // ---- Sign ----
         struct qks_verdict_msg v = {0};
         v.event_id = ev->event_id;
@@ -569,6 +589,8 @@ int main(void) {
         return 1;
     }
     qks_policy_merge_local("policy/policy.local.json");
+
+    ml_client_init("/tmp/qks_ml.sock");
 
     struct nl_sock *sk = nl_socket_alloc();
     if (!sk) {

@@ -5,6 +5,7 @@ WARN    := -Wall -Wextra -Wno-unused-parameter
 OPT     := -O2 -g -std=c11
 
 PQ_DIR      := pqclean/ml-dsa-44/clean
+ML_DIR      := ml_service
 
 CFLAGS  := $(OPT) $(WARN)
 CFLAGS  += $(shell pkg-config --cflags libnl-3.0 libnl-genl-3.0)
@@ -31,12 +32,14 @@ RNG_SRC := randombytes.c \
 
 POLICY_SRCS := policy.c cJSON.c
 
+ML_SRCS := $(ML_DIR)/ml_buffer.c $(ML_DIR)/ml_client.c
+
 
 .PHONY: all clean
 
 all: qks_daemon
 
-qks_daemon: qks_daemon.c $(PQ_SRCS) $(RNG_SRC) $(POLICY_SRCS)
+qks_daemon: qks_daemon.c $(PQ_SRCS) $(RNG_SRC) $(POLICY_SRCS) $(ML_SRCS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 
