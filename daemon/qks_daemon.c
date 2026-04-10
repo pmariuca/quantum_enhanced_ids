@@ -125,7 +125,8 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
                                   const char *sig_status,
                                   size_t sig_len,
                                   const uint8_t hash[32],
-                                  const char *sig_scheme)
+                                  const char *sig_scheme,
+                                  float ml_prob)
 {
     FILE *f = fopen("policy/events.jsonl", "a");
     if (!f) {
@@ -250,6 +251,10 @@ static void qks_write_event_jsonl(const struct qks_event_msg *ev,
         fprintf(f, "\"sock_protocol\":%u", ev->sc_arg2_u32);
         fprintf(f, "}");
     }
+
+    // ml probability
+    if (ml_prob >= 0.0f)
+        fprintf(f, ",\"ml_prob\":%.6f", ml_prob);
 
     // end object
     fprintf(f, "}\n");
@@ -485,14 +490,15 @@ static void *worker_thread_main(void *arg)
         ml_pid_buffer_t *buf = ml_buf_get(ev_pid, ev->timestamp_ns);
         ml_buf_update(buf, ev);
 
+        float ml_prob = -1.0f;
         if (pol == QKS_POLICY_UNKNOWN) {
             printf("[DAEMON DEBUG] buf=%p, calling ml_client_infer...\n", (void*)buf);
-            float prob = ml_client_infer(buf);
-            printf("[DAEMON DEBUG] ml_client returned prob=%.4f\n", prob);
+            ml_prob = ml_client_infer(buf);
+            printf("[DAEMON DEBUG] ml_client returned prob=%.4f\n", ml_prob);
             
-            if (prob >= 0.0f) {
-                pol = (prob > 0.7f) ? QKS_POLICY_DENY : QKS_POLICY_ALLOW;
-                pol_reason = (prob > 0.7f) ? "ml_anomaly" : "ml_benign";
+            if (ml_prob >= 0.0f) {
+                pol = (ml_prob > 0.7f) ? QKS_POLICY_DENY : QKS_POLICY_ALLOW;
+                pol_reason = (ml_prob > 0.7f) ? "ml_anomaly" : "ml_benign";
             }
         }
 
@@ -538,7 +544,8 @@ static void *worker_thread_main(void *arg)
 
             qks_write_event_jsonl(ev, pol, pol_reason,
                                     sig_status, v.signature_len,
-                                    v.hash, "verdict_tuple_v1");
+                                    v.hash, "verdict_tuple_v1",
+                                    ml_prob);
 
             if (pol == QKS_POLICY_DENY) {
                 struct qks_verdict_msg v = {0};
