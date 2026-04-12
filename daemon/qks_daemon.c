@@ -10,14 +10,13 @@
 #include <netdb.h>
 #include <openssl/sha.h>
 
-
 #include <netlink/netlink.h>
 #include <netlink/msg.h>
 #include <netlink/genl/genl.h>
 #include <netlink/genl/ctrl.h>
 
 #include <arpa/inet.h>
-#include <netinet/tcp.h>   // TCP flags
+#include <netinet/tcp.h>
 #include <netinet/ip.h>
 
 #include "pqclean/ml-dsa-44/clean/api.h"
@@ -38,8 +37,12 @@
 #include <pthread.h>
 
 
+#define QKS_PID_FILE "/run/qks_daemon.pid"
+
+
 // Globals
 static volatile bool g_running = true;
+static volatile sig_atomic_t g_reload_policy = 0;
 
 struct qks_queue g_queue;
 static pthread_t g_worker;
@@ -87,6 +90,28 @@ static bool load_public_key(void) {
 static void on_sigint(int signo) {
     (void)signo;
     g_running = false;
+}
+
+static void on_sigusr1(int signo) {
+    (void)signo;
+    g_reload_policy = 1;
+}
+
+static void write_pid_file(void) {
+    FILE *f = fopen(QKS_PID_FILE, "w");
+    if (!f) {
+        fprintf(stderr, "[DAEMON] WARNING: cannot write PID file %s: %s\n",
+                QKS_PID_FILE, strerror(errno));
+        return;
+    }
+    fprintf(f, "%d\n", getpid());
+    fclose(f);
+    printf("[DAEMON] PID file written: %s\n", QKS_PID_FILE);
+}
+
+static void remove_pid_file(void) {
+    if (remove(QKS_PID_FILE) != 0 && errno != ENOENT)
+        fprintf(stderr, "[DAEMON] WARNING: cannot remove PID file: %s\n", strerror(errno));
 }
 
 // ------------------------- PRINTING -------------------------
@@ -461,6 +486,13 @@ static void *worker_thread_main(void *arg)
     while (g_running) {
         struct qks_event_msg *ev = queue_pop(&g_queue);
 
+        if (g_reload_policy) {
+            g_reload_policy = 0;
+            printf("[DAEMON] Reloading policy files (SIGUSR1)\n");
+            qks_policy_load("policy/policy.json");
+            qks_policy_merge_local("policy/policy.local.json");
+        }
+
         if (ev->event_type == QKS_EVENT_SYSCALL) {
             printf("SYSCALL: %s (%u)\n",
                 syscall_name_or_unknown(ev->sc_nr),
@@ -589,7 +621,9 @@ int main(void) {
     if (!load_private_key())
         return 1;
 
-    if (!load_public_key())  return 1;
+    if (!load_public_key()) return 1;
+
+    write_pid_file();
     
     if (!qks_policy_load("policy/policy.json")) {
         fprintf(stderr, "[DAEMON] Failed to load policy.json\n");
@@ -607,6 +641,7 @@ int main(void) {
 
     signal(SIGINT, on_sigint);
     signal(SIGTERM, on_sigint);
+    signal(SIGUSR1, on_sigusr1);
 
     nl_socket_disable_seq_check(sk);
     nl_socket_disable_auto_ack(sk);
@@ -661,6 +696,7 @@ int main(void) {
     pthread_cond_broadcast(&g_queue.cond);
     pthread_join(g_worker, NULL);
 
+    remove_pid_file();
     printf("[DAEMON] Shutdown.\n");
     return 0;
 }

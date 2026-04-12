@@ -78,13 +78,16 @@ bool qks_policy_load(const char *path)
     buf[size] = '\0';
     fclose(f);
 
-    policy_root = cJSON_Parse(buf);
+    cJSON *new_root = cJSON_Parse(buf);
     free(buf);
 
-    if (!policy_root) {
+    if (!new_root) {
         fprintf(stderr, "[POLICY] invalid JSON in %s\n", path);
         return false;
     }
+
+    cJSON_Delete(policy_root);
+    policy_root = new_root;
 
     printf("[POLICY] Loaded policy file OK\n");
     return true;

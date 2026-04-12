@@ -1,0 +1,11 @@
+{
+  "listen_addr": ":8080",
+  "events_jsonl": "../daemon/policy/events.jsonl",
+  "policy_json": "../daemon/policy/policy.json",
+  "policy_local_json": "../daemon/policy/policy.local.json",
+  "pid_file": "/run/qks_daemon.pid",
+  "jwt_secret": "CHANGE_ME_use_a_long_random_string",
+  "admin_username": "admin",
+  "admin_password_hash": "REPLACE_WITH_OUTPUT_OF_tools/genpw",
+  "allowed_origin": "http://localhost:4200"
+}
