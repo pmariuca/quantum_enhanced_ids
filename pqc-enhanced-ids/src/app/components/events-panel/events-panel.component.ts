@@ -6,6 +6,7 @@ import { BadgeComponent } from '../ui/badge/badge.component';
 import { ScrollAreaComponent } from '../ui/scroll-area/scroll-area.component';
 import { SelectComponent } from '../ui/select/select.component';
 import { EventsService, SecurityEvent } from '../../services/events.service';
+import { AuthService } from '../../services/auth.service';
 
 type EventType = 'critical' | 'warning' | 'success' | 'info';
 
@@ -72,7 +73,7 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
     }
   };
 
-  constructor(private eventsService: EventsService) {}
+  constructor(private eventsService: EventsService, private authService: AuthService) {}
 
   ngOnInit() {
     this.loadInitialEvents();
@@ -98,7 +99,7 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
 
   private subscribeToStream() {
     try {
-      this.eventSource = this.eventsService.getEventsStream();
+      this.eventSource = this.eventsService.getEventsStream(this.authService.getToken() ?? '');;
       this.eventSource.onmessage = (event: any) => {
         const line = event.data;
         const parsed = JSON.parse(line) as SecurityEvent;

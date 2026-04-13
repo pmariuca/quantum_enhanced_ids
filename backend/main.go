@@ -48,6 +48,7 @@ func main() {
 
 	// Public routes
 	r.Post("/api/auth/login", api.LoginHandler(cfg))
+	r.Post("/api/auth/refresh", api.RefreshTokenHandler(cfg))
 
 	// Protected routes
 	r.Group(func(r chi.Router) {

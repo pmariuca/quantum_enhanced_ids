@@ -27,7 +27,7 @@ export class EventsService {
     return this.http.get<SecurityEvent[]>(url);
   }
 
-  getEventsStream(): EventSource {
-    return new EventSource(`${this.apiUrl}/stream`);
+  getEventsStream(token: string): EventSource {
+    return new EventSource(`${this.apiUrl}/stream?token=${encodeURIComponent(token)}`);
   }
 }
