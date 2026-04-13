@@ -1,14 +1,15 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { NgFor, NgClass } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { BadgeComponent } from '../ui/badge/badge.component';
 import { ScrollAreaComponent } from '../ui/scroll-area/scroll-area.component';
 import { SelectComponent } from '../ui/select/select.component';
+import { EventsService, SecurityEvent } from '../../services/events.service';
 
 type EventType = 'critical' | 'warning' | 'success' | 'info';
 
-interface SecurityEvent {
+interface DisplayEvent {
   id: string;
   type: EventType;
   title: string;
@@ -30,12 +31,11 @@ interface SecurityEvent {
   templateUrl: './events-panel.component.html',
   styleUrl: './events-panel.component.css'
 })
-export class EventsPanelComponent {
-  events: SecurityEvent[] = [];
+export class EventsPanelComponent implements OnInit, OnDestroy {
+  events: DisplayEvent[] = [];
   filter: EventType | 'all' = 'all';
   logSource = 'both';
-
-  intervalId: any;
+  eventSource: EventSource | null = null;
 
   eventTypeConfig: any = {
     critical: {
@@ -72,41 +72,60 @@ export class EventsPanelComponent {
     }
   };
 
-  ngOnInit() {
-    this.events = this.generateMockEvents();
+  constructor(private eventsService: EventsService) {}
 
-    this.intervalId = setInterval(() => {
-      const newEvent = this.generateRandomEvent();
-      this.events = [newEvent, ...this.events].slice(0, 20);
-    }, 8000);
+  ngOnInit() {
+    this.loadInitialEvents();
+    this.subscribeToStream();
   }
 
   ngOnDestroy() {
-    clearInterval(this.intervalId);
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
   }
 
-  generateMockEvents(): SecurityEvent[] {
-    return [
-      {
-        id: '1',
-        type: 'critical',
-        title: 'Unauthorized kernel module load attempt',
-        description: 'Detected attempt to load unsigned kernel module',
-        timestamp: '2026-03-20 14:32:15',
-        source: 'Kernel Monitor'
-      }
-    ];
+  private loadInitialEvents() {
+    this.eventsService.getEvents(20).subscribe({
+      next: (events) => {
+        this.events = events
+          .reverse()
+          .map(ev => this.convertToDisplayEvent(ev));
+      },
+      error: (err) => console.error('Failed to load events:', err)
+    });
   }
 
-  generateRandomEvent(): SecurityEvent {
-    const types: EventType[] = ['critical', 'warning', 'success', 'info'];
+  private subscribeToStream() {
+    try {
+      this.eventSource = this.eventsService.getEventsStream();
+      this.eventSource.onmessage = (event: any) => {
+        const line = event.data;
+        const parsed = JSON.parse(line) as SecurityEvent;
+        const displayEvent = this.convertToDisplayEvent(parsed);
+        this.events = [displayEvent, ...this.events].slice(0, 20);
+      };
+    } catch (err) {
+      console.error('Failed to subscribe to event stream:', err);
+    }
+  }
+
+  private convertToDisplayEvent(ev: SecurityEvent): DisplayEvent {
+    let type: EventType = 'info';
+    if (ev.policy === 'DENY') {
+      type = 'critical';
+    } else if (ev.ml_prob !== undefined && ev.ml_prob > 0.5) {
+      type = 'warning';
+    } else if (ev.policy === 'ALLOW') {
+      type = 'success';
+    }
 
     return {
-      id: Date.now().toString(),
-      type: types[Math.floor(Math.random() * 4)],
-      title: 'New security event detected',
-      description: 'Real-time monitoring detected a new event',
-      timestamp: new Date().toLocaleString(),
+      id: ev.event_id.toString(),
+      type,
+      title: `${ev.type} event (ID: ${ev.event_id})`,
+      description: `Policy: ${ev.policy}, Reason: ${ev.reason}`,
+      timestamp: ev.ts_daemon,
       source: 'Kernel Monitor'
     };
   }

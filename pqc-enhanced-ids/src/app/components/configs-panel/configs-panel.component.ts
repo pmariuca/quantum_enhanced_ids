@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { NgClass, NgIf } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
+import { PolicyService } from '../../services/policy.service';
 
 @Component({
   selector: 'app-configs-panel',
@@ -12,65 +13,37 @@ import { LucideAngularModule } from 'lucide-angular';
   templateUrl: './configs-panel.component.html',
   styleUrl: './configs-panel.component.css'
 })
-export class ConfigsPanelComponent {
+export class ConfigsPanelComponent implements OnInit {
   activeTab: 'kernel' | 'ebpf' | 'firewall' = 'kernel';
   copied: string | null = null;
 
-  kernelConfig: string = `# Kernel Security Configuration
-  # Version: 3.2.1
-  # Last Modified: 2026-03-20
+  kernelConfig: string = '';
+  ebpfConfig: string = '';
+  firewallRules: string = '';
+  saving = false;
+  saveMessage = '';
 
-  [security.core]
-  enabled = true
-  strict_mode = true
-  audit_level = verbose
+  constructor(private policyService: PolicyService) {}
 
-  [protection.memory]
-  stack_protection = true
-  heap_randomization = true
-  buffer_overflow_detection = true
-  max_allocation_size = 2GB
+  ngOnInit() {
+    this.loadPolicy();
+  }
 
-  [protection.process]
-  aslr_enabled = true
-  dep_enabled = true
-  privilege_escalation_block = true
-  suspicious_syscall_monitoring = true
+  private loadPolicy() {
+    this.policyService.getPolicy().subscribe({
+      next: (content) => {
+        this.kernelConfig = content;
+      },
+      error: (err) => console.error('Failed to load policy:', err)
+    });
 
-  [network.firewall]
-  default_policy = deny
-  allow_loopback = true
-  rate_limiting = true
-  ddos_protection = enabled
-
-  [monitoring.events]
-  log_level = debug
-  real_time_alerts = true
-  event_buffer_size = 10000
-  retention_days = 90`;
-
-  ebpfConfig: string = `# eBPF Security Rules
-  program syscall_monitor {
-    on_syscall_enter {
-      if (syscall.type == EXECVE) {
-        alert("Suspicious execution", HIGH);
-        block_action();
-      }
-    }
-  }`;
-
-  firewallRules: string = `# Firewall Rules Configuration
-  table inet filter {
-    chain input {
-      type filter hook input priority 0; policy drop;
-
-      ct state established,related accept
-      iif lo accept
-      tcp dport 22 limit rate 3/minute accept
-
-      log prefix "DROPPED: " drop
-    }
-  }`;
+    this.policyService.getPolicyLocal().subscribe({
+      next: (content) => {
+        this.ebpfConfig = content;
+      },
+      error: (err) => console.error('Failed to load policy local:', err)
+    });
+  }
 
   handleCopy(content: string, name: string) {
     navigator.clipboard.writeText(content);
@@ -82,14 +55,56 @@ export class ConfigsPanelComponent {
   }
 
   handleSave() {
-    console.log("Saved");
+    this.saving = true;
+    this.saveMessage = '';
+
+    const promises: Promise<void>[] = [];
+
+    if (this.kernelConfig) {
+      promises.push(
+        new Promise((resolve, reject) => {
+          this.policyService.updatePolicy(this.kernelConfig).subscribe({
+            next: () => resolve(),
+            error: (err) => reject(err)
+          });
+        })
+      );
+    }
+
+    if (this.ebpfConfig) {
+      promises.push(
+        new Promise((resolve, reject) => {
+          this.policyService.updatePolicyLocal(this.ebpfConfig).subscribe({
+            next: () => resolve(),
+            error: (err) => reject(err)
+          });
+        })
+      );
+    }
+
+    Promise.all(promises)
+      .then(() => {
+        this.saveMessage = 'Policy saved successfully!';
+      })
+      .catch((err) => {
+        this.saveMessage = 'Failed to save policy';
+        console.error(err);
+      })
+      .finally(() => {
+        this.saving = false;
+      });
   }
 
   handleReload() {
-    console.log("Reloaded");
+    this.loadPolicy();
   }
 
   handleExport(name: string) {
-    console.log("Export", name);
+    const content = this.activeTab === 'kernel' ? this.kernelConfig : this.ebpfConfig;
+    const blob = new Blob([content], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${name}-policy.json`;
+    link.click();
   }
 }
