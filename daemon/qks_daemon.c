@@ -80,9 +80,6 @@ static bool load_public_key(void) {
         fprintf(stderr, "[DAEMON] ERROR: bad public key length %zu (want 1312)\n", g_pk_len);
         return false;
     }
-    printf("[DAEMON] pk[0..15]=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
-           g_pk[0],g_pk[1],g_pk[2],g_pk[3],g_pk[4],g_pk[5],g_pk[6],g_pk[7],
-           g_pk[8],g_pk[9],g_pk[10],g_pk[11],g_pk[12],g_pk[13],g_pk[14],g_pk[15]);
     return true;
 }
 
@@ -466,9 +463,6 @@ static int on_qks_msg(struct nl_msg *msg, void *arg) {
     }
 
     const qks_event_msg *m = nla_data(attrs[QKS_ATTR_MSG]);
-    printf("[DAEMON] EVENT id=%lu type=%s (queued)\n",
-           m->event_id,
-           evt_type_str(m->event_type));
 
     struct qks_event_msg *cpy = malloc(sizeof(*cpy));
     memcpy(cpy, m, sizeof(*cpy));
@@ -569,11 +563,6 @@ static void *worker_thread_main(void *arg)
         }
 
         if (!suppress_log) {
-            printf("[DAEMON] policy = %s (reason=%s)\n",
-                pol == QKS_POLICY_ALLOW ? "ALLOW" :
-                pol == QKS_POLICY_DENY  ? "DENY"  : "UNKNOWN",
-                pol_reason ? pol_reason : "n/a");
-
             qks_write_event_jsonl(ev, pol, pol_reason,
                                     sig_status, v.signature_len,
                                     v.hash, "verdict_tuple_v1",
