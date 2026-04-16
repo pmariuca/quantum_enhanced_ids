@@ -14,7 +14,8 @@
     "allow": [  
       {
         "path_prefix": "/usr/bin/dash",
-        "reason": "system_shell_whitelist"
+        "reason": "system_shell_whitelist",
+        "suppress_log": true
       },
       {
         "uid_in": [0],
@@ -64,6 +65,24 @@
     ],
 
     "allow": [
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/cat",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/sed",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/bash",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
       {
         "path_prefix": "/usr/bin/",
         "reason": "well_known_usr_bin"

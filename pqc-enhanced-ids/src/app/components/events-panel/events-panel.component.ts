@@ -99,7 +99,7 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
 
   private subscribeToStream() {
     try {
-      this.eventSource = this.eventsService.getEventsStream(this.authService.getToken() ?? '');;
+      this.eventSource = this.eventsService.getEventsStream(this.authService.getToken() ?? '');
       this.eventSource.onmessage = (event: any) => {
         const line = event.data;
         const parsed = JSON.parse(line) as SecurityEvent;
