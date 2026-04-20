@@ -54,15 +54,15 @@
     <div class="space-y-3">
       <div *ngFor="let event of filteredEvents"
         class="p-4 rounded-xl border backdrop-blur-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
-        [ngClass]="eventTypeConfig[event.type].border + ' ' + eventTypeConfig[event.type].bg">
+        [ngClass]="eventTypeConfig[getDisplayType(event)].border + ' ' + eventTypeConfig[getDisplayType(event)].bg">
 
         <div class="flex items-start space-x-4">
           <div class="p-2 rounded-lg"
-            [ngClass]="eventTypeConfig[event.type].bg">
+            [ngClass]="eventTypeConfig[getDisplayType(event)].bg">
             <lucide-icon
-              [name]="eventTypeConfig[event.type].icon"
+              [name]="eventTypeConfig[getDisplayType(event)].icon"
               class="w-5 h-5"
-              [ngClass]="eventTypeConfig[event.type].color">
+              [ngClass]="eventTypeConfig[getDisplayType(event)].color">
             </lucide-icon>
           </div>
 
@@ -72,8 +72,8 @@
                 {{ event.title }}
               </h3>
 
-              <app-badge [className]="eventTypeConfig[event.type].badge">
-                {{ eventTypeConfig[event.type].label }}
+              <app-badge [className]="eventTypeConfig[getDisplayType(event)].badge">
+                {{ eventTypeConfig[getDisplayType(event)].label }}
               </app-badge>
             </div>
 
@@ -105,8 +105,7 @@
 
       <app-select
         [options]="[
-          { label: 'Kernel + Daemon', value: 'both' },
-          { label: 'Kernel Only', value: 'kernel' },
+          { label: 'Static Only', value: 'kernel' },
           { label: 'Daemon Only', value: 'daemon' }
         ]"
         [(value)]="logSource"

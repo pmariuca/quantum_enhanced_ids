@@ -1,5 +1,5 @@
 import { Component, AfterViewInit, OnInit, OnDestroy } from '@angular/core';
-import { NgFor } from '@angular/common';
+import { DecimalPipe, NgFor } from '@angular/common';
 import { LucideAngularModule } from 'lucide-angular';
 import { Chart } from 'chart.js/auto';
 import { MetricsService, Metrics } from '../../services/metrics.service';
@@ -8,15 +8,21 @@ import { MetricsService, Metrics } from '../../services/metrics.service';
   selector: 'app-metrics-panel',
   imports: [
     NgFor, 
+    DecimalPipe,
     LucideAngularModule
   ],
   templateUrl: './metrics-panel.component.html',
 })
 export class MetricsPanelComponent implements OnInit, AfterViewInit {
   cpuData: number[] = [];
+  memData: number[] = [];
   threatData: number[] = [];
   metrics: Metrics | null = null;
   intervalId: any;
+  private viewInitialized = false;
+  private cpuChart?: Chart;
+  private memChart?: Chart;
+  private threatChart?: Chart;
 
   constructor(private metricsService: MetricsService) {}
 
@@ -37,6 +43,7 @@ export class MetricsPanelComponent implements OnInit, AfterViewInit {
       next: (m) => {
         this.metrics = m;
         this.cpuData = [...this.cpuData, m.cpu_pct].slice(-10);
+        this.memData = [...this.memData, m.mem_pct].slice(-10);
         this.threatData = [...this.threatData, m.total_deny].slice(-10);
         this.updateCharts();
       },
@@ -45,13 +52,18 @@ export class MetricsPanelComponent implements OnInit, AfterViewInit {
   }
 
   private updateCharts() {
-    // Charts will be recreated after view init
+    if (!this.viewInitialized) {
+      return;
+    }
+
+    this.cpuChart = this.upsertChart(this.cpuChart, 'cpuChart', this.cpuData, '#d946ef', true);
+    this.memChart = this.upsertChart(this.memChart, 'memChart', this.memData, '#8b5cf6', true);
+    this.threatChart = this.upsertChart(this.threatChart, 'threatChart', this.threatData, '#ff006e', true);
   }
 
   ngAfterViewInit() {
-    this.createChart('cpuChart', this.cpuData, '#d946ef');
-    this.createChart('memChart', this.cpuData, '#8b5cf6', true);
-    this.createChart('threatChart', this.threatData, '#ff006e');
+    this.viewInitialized = true;
+    this.updateCharts();
   }
 
   hexToRgba(hex: string, alpha: number) {
@@ -61,9 +73,21 @@ export class MetricsPanelComponent implements OnInit, AfterViewInit {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  createChart(id: string, data: number[], color: string, fill = false) {
+  private upsertChart(existing: Chart | undefined, id: string, data: number[], color: string, fill = false): Chart | undefined {
     const canvas = document.getElementById(id) as HTMLCanvasElement;
-    if (!canvas) return;
+    if (!canvas) {
+      console.warn(`[MetricsPanel] canvas not found: ${id}`);
+      return existing;
+    }
+
+    if (existing) {
+      existing.data.labels = data.map((_, i) => i);
+      if (existing.data.datasets[0]) {
+        existing.data.datasets[0].data = data;
+      }
+      existing.update();
+      return existing;
+    }
     
     const ctx = canvas.getContext('2d')!;
     let background: string | CanvasGradient = 'transparent';
@@ -75,7 +99,7 @@ export class MetricsPanelComponent implements OnInit, AfterViewInit {
       background = gradient;
     }
 
-    new Chart(id, {
+    return new Chart(id, {
       type: fill ? 'line' : 'line',
       data: {
         labels: data.map((_, i) => i),
@@ -84,7 +108,7 @@ export class MetricsPanelComponent implements OnInit, AfterViewInit {
           tension: 0.35,
           borderWidth: 2,
           borderColor: color,
-          backgroundColor: fill ? color : 'transparent',
+          backgroundColor: fill ? background : 'transparent',
           fill,
           pointRadius: 0,
         }]
@@ -99,5 +123,62 @@ export class MetricsPanelComponent implements OnInit, AfterViewInit {
         }
       }
     });
+  }
+
+  calculateSystemHealth(): number {
+    if (!this.metrics) return 0;
+
+    // Weighted formula:
+    // 60% based on CPU + Memory usage
+    // 40% based on threat ratio (fewer blocks = better)
+    
+    const resourceHealth = 100 - ((this.metrics.cpu_pct + this.metrics.mem_pct) / 2);
+    
+    const threatRatio = this.metrics.total_events > 0 
+      ? (this.metrics.total_deny / this.metrics.total_events) * 100 
+      : 0;
+    const threatHealth = Math.max(0, 100 - threatRatio);
+    
+    return Math.round((resourceHealth * 0.6 + threatHealth * 0.4) * 10) / 10;
+  }
+
+  getHealthStatus(): string {
+    const health = this.calculateSystemHealth();
+    if (health >= 90) return 'Optimal';
+    if (health >= 70) return 'Good';
+    if (health >= 50) return 'Fair';
+    return 'Poor';
+  }
+
+  getThreatTrend(): { value: number; isUp: boolean } {
+    if (this.threatData.length < 2) return { value: 0, isUp: false };
+    
+    const current = this.threatData[this.threatData.length - 1];
+    const previous = this.threatData[this.threatData.length - 2];
+    const change = current - previous;
+    
+    return {
+      value: Math.abs(change),
+      isUp: change > 0
+    };
+  }
+
+  getMemoryTrend(): { value: number; isUp: boolean } {
+    if (this.memData.length < 2) {
+      return { value: 0, isUp: false };
+    }
+
+    const current = this.memData[this.memData.length - 1];
+    const previous = this.memData[this.memData.length - 2];
+
+    if (previous <= 0) {
+      return { value: current > 0 ? 100 : 0, isUp: current > 0 };
+    }
+
+    const changePct = Math.abs(((current - previous) / previous) * 100);
+    return {
+      value: Math.round(changePct * 10) / 10,
+      isUp: current > previous,
+    };
   }
 }

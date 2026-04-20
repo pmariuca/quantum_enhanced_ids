@@ -56,6 +56,7 @@ func main() {
 
 		r.Get("/api/events", api.EventsHandler(store))
 		r.Get("/api/events/stream", api.EventsStreamHandler(t))
+		r.Get("/api/events/download", api.EventsDownloadHandler(cfg))
 
 		r.Get("/api/metrics", api.MetricsHandler(store, cfg))
 

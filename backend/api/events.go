@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
+	"qks/backend/config"
 	"qks/backend/internal/eventstore"
 	"qks/backend/internal/tailer"
 )
@@ -73,5 +76,34 @@ func EventsStreamHandler(t *tailer.Tailer) http.HandlerFunc {
 				flusher.Flush()
 			}
 		}
+	}
+}
+
+// GET /api/events/download.
+// It serves the full daemon events JSONL file.
+// Query params: source=daemon|static
+func EventsDownloadHandler(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		source := r.URL.Query().Get("source")
+		if source == "" {
+			source = "daemon"
+		}
+
+		if source == "static" {
+			http.Error(w, "static source file export is not available", http.StatusBadRequest)
+			return
+		}
+
+		data, err := os.ReadFile(cfg.EventsJSONL)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read events file: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		filename := filepath.Base(cfg.EventsJSONL)
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
 	}
 }

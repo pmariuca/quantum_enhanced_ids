@@ -7,7 +7,7 @@
         </div>
         <div>
           <p class="text-xs text-muted-foreground">CPU Usage</p>
-          <p class="text-2xl font-bold">68%</p>
+          <p class="text-2xl font-bold">{{ metrics?.cpu_pct | number: '1.0-1' }}%</p>
         </div>
       </div>
 
@@ -30,13 +30,16 @@
         </div>
         <div>
           <p class="text-xs text-muted-foreground">Memory</p>
-          <p class="text-2xl font-bold">12.4 GB</p>
+          <p class="text-2xl font-bold">{{ ((metrics?.mem_used_mb ?? 0) / 1024) | number: '1.1-1' }} GB</p>
         </div>
       </div>
 
       <div class="flex items-center text-accent text-sm">
-        <lucide-icon name="trending-up" class="w-4 h-4 mr-1"></lucide-icon>
-        +2%
+        <lucide-icon
+          [name]="getMemoryTrend().isUp ? 'trending-up' : 'trending-down'"
+          class="w-4 h-4 mr-1">
+        </lucide-icon>
+        {{ getMemoryTrend().isUp ? '+' : '-' }}{{ getMemoryTrend().value }}%
       </div>
     </div>
 
@@ -53,13 +56,16 @@
         </div>
         <div>
           <p class="text-xs text-muted-foreground">Threats Blocked</p>
-          <p class="text-2xl font-bold">247</p>
+          <p class="text-2xl font-bold">{{ metrics?.total_deny }}</p>
         </div>
       </div>
 
       <div class="flex items-center text-accent text-sm">
-        <lucide-icon name="trending-down" class="w-4 h-4 mr-1"></lucide-icon>
-        -12%
+        <lucide-icon 
+          [name]="getThreatTrend().isUp ? 'trending-up' : 'trending-down'" 
+          class="w-4 h-4 mr-1">
+        </lucide-icon>
+        {{ getThreatTrend().isUp ? '+' : '-' }}{{ getThreatTrend().value }}
       </div>
     </div>
 
@@ -76,12 +82,12 @@
         </div>
         <div>
           <p class="text-xs text-muted-foreground">System Health</p>
-          <p class="text-2xl font-bold">98.7%</p>
+          <p class="text-2xl font-bold">{{ calculateSystemHealth() }}%</p>
         </div>
       </div>
 
       <span class="px-2 py-1 bg-[#06b6d4]/20 rounded text-accent text-sm">
-        Optimal
+        {{ getHealthStatus() }}
       </span>
     </div>
 

@@ -86,11 +86,11 @@ func RefreshTokenHandler(cfg *config.Config) http.HandlerFunc {
 
 		// Parse the token without validating expiration
 		token, err := jwt.Parse(req.Token, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHS256); !ok {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}
 			return []byte(cfg.JWTSecret), nil
-		}, jwt.WithValidMethods([]string{"HS256"}))
+		}, jwt.WithValidMethods([]string{"HMAC"}))
 
 		if err != nil || !token.Valid {
 			http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)

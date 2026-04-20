@@ -30,4 +30,9 @@ export class EventsService {
   getEventsStream(token: string): EventSource {
     return new EventSource(`${this.apiUrl}/stream?token=${encodeURIComponent(token)}`);
   }
+
+  downloadEventsFile(source: 'daemon' | 'static'): Observable<Blob> {
+    const url = `${this.apiUrl}/download?source=${encodeURIComponent(source)}`;
+    return this.http.get(url, { responseType: 'blob' });
+  }
 }

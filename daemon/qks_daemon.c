@@ -487,21 +487,6 @@ static void *worker_thread_main(void *arg)
             qks_policy_merge_local("policy/policy.local.json");
         }
 
-        if (ev->event_type == QKS_EVENT_SYSCALL) {
-            printf("SYSCALL: %s (%u)\n",
-                syscall_name_or_unknown(ev->sc_nr),
-                ev->sc_nr);
-            printf("      subtype = %u\n", ev->sc_subtype);
-            printf("      addr    = 0x%lx\n", ev->sc_addr);
-            printf("      len     = %lu\n", ev->sc_len);
-            printf("      flags   = 0x%lx\n", ev->sc_flags);
-            printf("      prot    = 0x%x\n", ev->sc_prot);
-            printf("      arg0    = %u\n", ev->sc_arg0_u32);
-            printf("      arg1    = %u\n", ev->sc_arg1_u32);
-            printf("      arg2    = %u\n", ev->sc_arg2_u32);
-            printf("      str     = '%s'\n", ev->sc_str);
-        }
-
         if (ev->event_type == QKS_EVENT_PACKET) {
             normalize_packet(ev);
         }

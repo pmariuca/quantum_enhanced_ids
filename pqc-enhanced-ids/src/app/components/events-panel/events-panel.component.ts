@@ -12,7 +12,7 @@ type EventType = 'critical' | 'warning' | 'success' | 'info';
 
 interface DisplayEvent {
   id: string;
-  type: EventType;
+  types: EventType[];
   title: string;
   description: string;
   timestamp: string;
@@ -35,7 +35,7 @@ interface DisplayEvent {
 export class EventsPanelComponent implements OnInit, OnDestroy {
   events: DisplayEvent[] = [];
   filter: EventType | 'all' = 'all';
-  logSource = 'both';
+  logSource = 'daemon';
   eventSource: EventSource | null = null;
 
   eventTypeConfig: any = {
@@ -112,20 +112,31 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
   }
 
   private convertToDisplayEvent(ev: SecurityEvent): DisplayEvent {
-    let type: EventType = 'info';
+    const types: EventType[] = [];
+    const isMlAnomalous = ev.ml_prob !== undefined && ev.ml_prob > 0.5;
+    
     if (ev.policy === 'DENY') {
-      type = 'critical';
-    } else if (ev.ml_prob !== undefined && ev.ml_prob > 0.5) {
-      type = 'warning';
-    } else if (ev.policy === 'ALLOW') {
-      type = 'success';
+      types.push('critical');
     }
+    if (isMlAnomalous) {
+      types.push('warning');
+    }
+    if (ev.policy === 'ALLOW' && !isMlAnomalous) {
+      types.push('success');
+    }
+    if (types.length === 0) {
+      types.push('info');
+    }
+
+    const mlNote = isMlAnomalous 
+      ? ` [ML: ${(ev.ml_prob! * 100).toFixed(1)}%]` 
+      : '';
 
     return {
       id: ev.event_id.toString(),
-      type,
+      types,
       title: `${ev.type} event (ID: ${ev.event_id})`,
-      description: `Policy: ${ev.policy}, Reason: ${ev.reason}`,
+      description: `Policy: ${ev.policy}, Reason: ${ev.reason}${mlNote}`,
       timestamp: ev.ts_daemon,
       source: 'Kernel Monitor'
     };
@@ -134,7 +145,16 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
   get filteredEvents() {
     return this.filter === 'all'
       ? this.events
-      : this.events.filter(e => e.type === this.filter);
+      : this.events.filter(e => e.types.includes(this.filter as EventType));
+  }
+
+  getDisplayType(event: DisplayEvent): EventType {
+    // If filter matches a type in the event, use that for styling
+    if (this.filter !== 'all' && event.types.includes(this.filter as EventType)) {
+      return this.filter as EventType;
+    }
+    // Otherwise use primary type
+    return event.types[0];
   }
 
   setFilter(type: any) {
@@ -142,12 +162,35 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
   }
 
   downloadLogs() {
+    if (this.logSource === 'daemon') {
+      this.eventsService.downloadEventsFile(this.logSource).subscribe({
+        next: (blob) => {
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'events.jsonl';
+          link.click();
+          URL.revokeObjectURL(link.href);
+        },
+        error: (err) => {
+          console.error('Failed to download daemon events file, falling back to filtered events:', err);
+          this.downloadFilteredEvents();
+        }
+      });
+      return;
+    }
+
+    // Kernel source does not have a dedicated backend file export.
+    this.downloadFilteredEvents();
+  }
+
+  private downloadFilteredEvents() {
     const content = JSON.stringify(this.filteredEvents, null, 2);
-    const blob = new Blob([content], { type: 'text/plain' });
+    const blob = new Blob([content], { type: 'application/json' });
 
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'logs.txt';
+    link.download = 'logs.json';
     link.click();
+    URL.revokeObjectURL(link.href);
   }
 }
