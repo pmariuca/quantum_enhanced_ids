@@ -213,6 +213,69 @@ func (s *Store) Totals() Totals {
 	}
 }
 
+// TimeseriesBucket holds per-bucket event counts.
+type TimeseriesBucket struct {
+	Label    string `json:"label"`
+	Execs    int    `json:"execs"`
+	Packets  int    `json:"packets"`
+}
+
+// Timeseries buckets all stored events into hourly slots, returning up to
+// maxBuckets buckets newest-last. Pass 0 to get up to 24 buckets.
+func (s *Store) Timeseries(maxBuckets int) []TimeseriesBucket {
+	if maxBuckets <= 0 {
+		maxBuckets = 24
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	type bucket struct {
+		execs   int
+		packets int
+	}
+	// keyed by "HH:00"
+	order := make([]string, 0)
+	buckets := make(map[string]*bucket)
+
+	for i := 0; i < s.count; i++ {
+		idx := (s.head + i) % s.cap
+		ev := s.ring[idx]
+		if ev == nil {
+			continue
+		}
+		// ts_daemon is RFC3339Nano; parse just the hour portion
+		label := ""
+		if len(ev.TsDaemon) >= 13 {
+			label = ev.TsDaemon[11:13] + ":00"
+		} else {
+			label = "??"
+		}
+		if _, ok := buckets[label]; !ok {
+			order = append(order, label)
+			buckets[label] = &bucket{}
+		}
+		switch ev.Type {
+		case "EXEC":
+			buckets[label].execs++
+		case "PACKET", "PACKET_IN":
+			buckets[label].packets++
+		}
+	}
+
+	// trim to last maxBuckets
+	if len(order) > maxBuckets {
+		order = order[len(order)-maxBuckets:]
+	}
+
+	result := make([]TimeseriesBucket, 0, len(order))
+	for _, lbl := range order {
+		b := buckets[lbl]
+		result = append(result, TimeseriesBucket{Label: lbl, Execs: b.execs, Packets: b.packets})
+	}
+	return result
+}
+
 // ParseLine parses a single JSON line from events.jsonl into an Event.
 func ParseLine(line []byte) (*Event, error) {
 	var ev Event

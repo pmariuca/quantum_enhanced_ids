@@ -2,11 +2,9 @@ import { Component } from '@angular/core';
 import { NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule } from 'lucide-angular';
-
 import { SwitchComponent } from '../ui/switch/switch.component';
 import { LabelComponent } from '../ui/label/label.component';
 import { SliderComponent } from '../ui/slider/slider.component';
-import { SelectComponent } from '../ui/select/select.component';
 import { ButtonComponent } from '../ui/button/button.component';
 import { SeparatorComponent } from '../ui/separator/separator.component';
 
@@ -20,7 +18,6 @@ import { SeparatorComponent } from '../ui/separator/separator.component';
     SwitchComponent,
     LabelComponent,
     SliderComponent,
-    SelectComponent,
     ButtonComponent,
     SeparatorComponent
   ],

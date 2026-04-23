@@ -10,16 +10,44 @@ export interface ModelMetrics {
   avg_ml_prob: number;
 }
 
+export interface ExecBlock {
+  pid: number;
+  ppid: number;
+  uid: number;
+  path: string;
+}
+
+export interface PacketBlock {
+  src_ip: string;
+  src_port: number;
+  dst_ip: string;
+  dst_port: number;
+  protocol: number;
+  len: number;
+}
+
 export interface SecurityEvent {
   ts_daemon: string;
   event_id: number;
   type: string;
+  policy: string;
+  reason: string;
+  ml_prob?: number;
+  exec?: ExecBlock;
+  packet?: PacketBlock;
+  packet_in?: PacketBlock;
   [key: string]: any;
 }
 
 export interface ModelActivity {
   recent_syscalls: SecurityEvent[];
   recent_packets: SecurityEvent[];
+}
+
+export interface TimeseriesBucket {
+  label: string;
+  execs: number;
+  packets: number;
 }
 
 @Injectable({
@@ -36,5 +64,9 @@ export class ModelService {
 
   getActivity(): Observable<ModelActivity> {
     return this.http.get<ModelActivity>(`${this.apiUrl}/activity`);
+  }
+
+  getTimeseries(): Observable<TimeseriesBucket[]> {
+    return this.http.get<TimeseriesBucket[]>(`${this.apiUrl}/timeseries`);
   }
 }

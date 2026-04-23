@@ -13,7 +13,7 @@ export class BadgeComponent {
 
   get classes(): string {
     const base =
-      "inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 transition-all";
+      "inline-flex items-center justify-center rounded-md border border-transparent px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 transition-all";
 
     const variants: Record<string, string> = {
       default: "border-transparent bg-primary text-primary-foreground",
@@ -22,6 +22,7 @@ export class BadgeComponent {
       outline: "text-foreground border border-border",
     };
 
-    return `${base} ${variants[this.variant]} ${this.className}`;
+    const variantClass = this.className ? '' : variants[this.variant];
+    return `${base} ${variantClass} ${this.className}`.trim();
   }
 }

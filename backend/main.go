@@ -62,6 +62,7 @@ func main() {
 
 		r.Get("/api/model/metrics", api.ModelMetricsHandler(store))
 		r.Get("/api/model/activity", api.ModelActivityHandler(store))
+		r.Get("/api/model/timeseries", api.ModelTimeseriesHandler(store))
 
 		r.Get("/api/status", api.StatusHandler(cfg))
 

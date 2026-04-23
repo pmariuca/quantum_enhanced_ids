@@ -14,7 +14,7 @@ type modelMetricsResponse struct {
 	AvgMLProb      float64 `json:"avg_ml_prob"`
 }
 
-// ModelMetricsHandler handles GET /api/model/metrics.
+// GET /api/model/metrics.
 func ModelMetricsHandler(store *eventstore.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Pull more events for a broader sample.
@@ -57,10 +57,17 @@ type modelActivityResponse struct {
 	RecentPackets  []*eventstore.Event `json:"recent_packets"`
 }
 
-// ModelActivityHandler handles GET /api/model/activity.
+// GET /api/model/timeseries.
+func ModelTimeseriesHandler(store *eventstore.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		buckets := store.Timeseries(24)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(buckets)
+	}
+}
 func ModelActivityHandler(store *eventstore.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		syscalls := store.Events(eventstore.QueryOptions{Limit: 20, EventType: "SYSCALL"})
+		syscalls := store.Events(eventstore.QueryOptions{Limit: 20, EventType: "EXEC"})
 		packets := store.Events(eventstore.QueryOptions{Limit: 20, EventType: "PACKET"})
 
 		w.Header().Set("Content-Type", "application/json")

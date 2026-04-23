@@ -1,5 +1,14 @@
 
 {
+    "exec": {
+        "allow": [
+            {
+                "path_prefix": "/home/admin/.vscode-server/",
+                "reason": "vscode_server_whitelist",
+                "suppress_log": true
+            }
+        ]
+    },
     "syscall": {
         "allow": [
         {
