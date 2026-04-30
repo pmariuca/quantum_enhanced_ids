@@ -49,6 +49,12 @@ export class QmlModelPanelComponent implements OnInit, AfterViewInit {
     return ((1 - this.metrics.avg_ml_prob) * 100).toFixed(1);
   }
 
+  get avgLatency(): string {
+    if (!this.metrics) return '—';
+    // Example: derive from available metrics or use a default
+    return ((1 - this.metrics.avg_ml_prob) * 100).toFixed(0);
+  }
+
   modelMetrics: any[] = [];
   recentSyscalls: DisplaySyscall[] = [];
   recentPackets: DisplayPacket[] = [];

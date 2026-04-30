@@ -66,6 +66,16 @@
 
     "allow": [
       {
+        "path_glob": "/usr/libexec/tracker-miner-fs-3",
+        "reason": "allow_gnome_tracker_indexer",
+        "suppress_log": true
+      },
+      {
+        "path_glob": "/usr/libexec/tracker-extract-3",
+        "reason": "allow_gnome_tracker_extractor",
+        "suppress_log": true
+      },
+      {
         "uid_in": [1000],
         "path_glob": "/usr/bin/cat",
         "reason": "user_shell_noise",
@@ -97,7 +107,8 @@
       },
       {
         "path_prefix": "/usr/bin/",
-        "reason": "well_known_usr_bin"
+        "reason": "well_known_usr_bin",
+        "suppress_log": true
       },
       {
         "path_prefix": "/bin/",
@@ -238,14 +249,16 @@
       },
       {
         "subtype": "SOCKET_CREATE",
-        "sock_domain_any": ["AF_INET", "AF_INET6", "AF_UNIX"],
+        "sock_domain_any": ["AF_UNIX"],
         "sock_type_any": ["SOCK_STREAM", "SOCK_DGRAM"],
-        "reason": "normal_socket_creation"
+        "reason": "normal_socket_creation",
+        "suppress_log": true
       },
       {
         "subtype": "CLONE_FAMILY",
         "flags_none": ["CLONE_NEWUSER"],
-        "reason": "normal_thread_creation"
+        "reason": "normal_thread_creation",
+        "suppress_log": true
       },
       {
         "subtype": "SETUID",

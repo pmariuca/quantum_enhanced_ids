@@ -43,7 +43,5 @@ export class LoginComponent {
         this.loading = false;
       }
     });
-    
-    console.log(localStorage.getItem('token'));
   }
 }

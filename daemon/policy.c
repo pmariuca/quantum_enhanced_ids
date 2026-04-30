@@ -127,7 +127,17 @@ bool qks_policy_merge_local(const char *path)
             if (cJSON_IsObject(item)) {
                 cJSON *sub = NULL;
                 cJSON_ArrayForEach(sub, item) {
-                    cJSON_ReplaceItemInObject(existing, sub->string, cJSON_Duplicate(sub, 1));
+                    /* For array values (deny/allow/ml), append instead of replace */
+                    cJSON *existing_sub = cJSON_GetObjectItem(existing, sub->string);
+                    if (existing_sub && cJSON_IsArray(existing_sub) && cJSON_IsArray(sub)) {
+                        cJSON *rule = NULL;
+                        cJSON_ArrayForEach(rule, sub) {
+                            cJSON_AddItemToArray(existing_sub, cJSON_Duplicate(rule, 1));
+                        }
+                    } else {
+                        /* Non-array: replace */
+                        cJSON_ReplaceItemInObject(existing, sub->string, cJSON_Duplicate(sub, 1));
+                    }
                 }
             } else {
                 cJSON_ReplaceItemInObject(policy_root, item->string, cJSON_Duplicate(item, 1));
