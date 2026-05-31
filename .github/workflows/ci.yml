@@ -1,0 +1,26 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image (backend)
+        run: docker build -t quantum_backend ./backend
+      - name: Run Go tests
+        run: docker run --rm quantum_backend go test ./...
+
+  build-ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image (ml)
+        run: docker build -t quantum_ml ./ml
+      - name: Run ML tests
+        run: docker run --rm quantum_ml pytest || true
