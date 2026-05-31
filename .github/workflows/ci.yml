@@ -11,10 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Build and Test (backend)
+        run: |
+          docker run --rm -v ${{ github.workspace }}/backend:/app -w /app golang:1.22-alpine sh -c "go test ./... && go build -o quantum_backend ."
       - name: Build Docker image (backend)
         run: docker build -t quantum_backend ./backend
-      - name: Run Go tests
-        run: docker run --rm quantum_backend go test ./...
 
   build-ml:
     runs-on: ubuntu-latest
