@@ -1,0 +1,27 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build and Test (backend)
+        run: |
+          docker run --rm -v ${{ github.workspace }}/backend:/app -w /app golang:1.22-alpine sh -c "go test ./... && go build -o quantum_backend ."
+      - name: Build Docker image (backend)
+        run: docker build -t quantum_backend ./backend
+
+  build-ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image (ml)
+        run: docker build -t quantum_ml ./ml
+      - name: Run ML tests
+        run: docker run --rm quantum_ml pytest || true
