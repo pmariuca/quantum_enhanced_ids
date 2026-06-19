@@ -1,0 +1,424 @@
+{
+  "version": 1,
+  "default_action": "ml",
+
+  "metadata": {
+    "__comment": "General metadata for versioning and descriptions",
+    "name": "QKS Master Policy",
+    "description": "Comprehensive allow/deny/ml rules for EXEC, PACKET, SYSCALL, DNS, FS, Memory, and behavioral controls.",
+    "generated_at": "auto",
+    "ruleset_version": "1.0"
+  },
+
+  "global": {
+    "allow": [  
+      {
+        "path_prefix": "/usr/bin/dash",
+        "reason": "system_shell_whitelist",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [0],
+        "path_prefix_any": ["/usr/bin/", "/bin/", "/sbin/"],
+        "reason": "root_system_binaries"
+      }
+    ],
+    "deny": [
+      {
+        "uid_in": [0],
+        "exec_paths_any": ["/tmp/", "/dev/shm/", "memfd:"],
+        "reason": "root_executing_from_unsafe_location"
+      },
+      {
+        "file_suffix_any": [".so", ".dll", ".sys"],
+        "path_prefix_any": ["/tmp/", "/dev/shm/"],
+        "reason": "dynamic_library_written_and_executed"
+      }
+    ]
+  },
+
+  "exec": {
+    "__comment": "Execution policy rules",
+
+    "deny": [
+      {
+        "path_prefix": "/tmp/",
+        "reason": "exec_from_tmp_directory"
+      },
+      {
+        "path_prefix": "/dev/shm/",
+        "reason": "exec_from_shared_memory"
+      },
+      {
+        "path_glob": "memfd:*",
+        "reason": "execution_from_memfd"
+      },
+      {
+        "path_suffix": ".py",
+        "uid_not": 0,
+        "reason": "python_script_exec_by_non_priv_user"
+      },
+      {
+        "path_contains_any": ["powershell", "pwsh", "cmd.exe"],
+        "reason": "windows_emulation_or_shell_exec"
+      }
+    ],
+
+    "allow": [
+      {
+        "path_glob": "/usr/libexec/tracker-miner-fs-3",
+        "reason": "allow_gnome_tracker_indexer",
+        "suppress_log": true
+      },
+      {
+        "path_glob": "/usr/libexec/tracker-extract-3",
+        "reason": "allow_gnome_tracker_extractor",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/cat",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/sed",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/bash",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/git",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
+      {
+        "uid_in": [1000],
+        "path_glob": "/usr/bin/sleep",
+        "reason": "user_shell_noise",
+        "suppress_log": true
+      },
+      {
+        "path_prefix": "/usr/bin/",
+        "reason": "well_known_usr_bin",
+        "suppress_log": true
+      },
+      {
+        "path_prefix": "/bin/",
+        "reason": "well_known_bin"
+      },
+      {
+        "path_contains_any": ["/usr/local/bin/"],
+        "reason": "local_admin_tooling"
+      }
+    ],
+
+    "ml": [
+      {
+        "any": true,
+        "reason": "unknown_or_unclassified_executable"
+      }
+    ]
+  },
+
+  "packet": {
+    "__comment": "Outbound packet rules",
+
+    "deny": [
+      {
+        "proto": "tcp",
+        "tcp_flags_any": ["syn"],
+        "dst_ports_any": [445, 3389, 23],
+        "reason": "high_risk_ports_smb_rdp_telnet"
+      },
+      {
+        "proto": "tcp",
+        "dst_ip_prefix_any": ["10.0.0.", "172.16.", "192.168."],
+        "uid_not": 0,
+        "reason": "privileged_internal_port_scan_non_root"
+      },
+      {
+        "proto": "udp",
+        "dst_ports_any": [1900, 5353],
+        "reason": "upnp_or_mdns_attack_vector"
+      }
+    ],
+
+    "allow": [
+      {
+        "proto": "tcp",
+        "tcp_flags_any": ["syn"],
+        "dst_ports_any": [80, 443],
+        "reason": "normal_web_traffic"
+      },
+      {
+        "proto": "udp",
+        "dst_ports_any": [53],
+        "reason": "dns_query"
+      }
+    ],
+
+    "ml": [
+      {
+        "proto": "tcp",
+        "tcp_flags_any": ["syn"],
+        "reason": "syn_to_unclassified_port"
+      },
+      {
+        "proto": "udp",
+        "reason": "unknown_udp_behavior"
+      }
+    ]
+  },
+
+  "dns": {
+    "__comment": "DNS event rules",
+
+    "deny": [
+      {
+        "qname_suffixes_any": [".onion", ".i2p"],
+        "reason": "tor_like_domain"
+      },
+      {
+        "qname_suffixes_any": [".xyz", ".top", ".click", ".cn", ".ru"],
+        "reason": "high_risk_tld"
+      }
+    ],
+
+    "allow": [
+      {
+        "qname_suffixes_any": [".google.com", ".microsoft.com", ".ubuntu.com", ".github.com"],
+        "reason": "known_trusted_vendor"
+      },
+      {
+        "qname_contains_any": ["ntp", "pool.ntp.org"],
+        "reason": "ntp_query"
+      }
+    ],
+
+    "ml": [
+      {
+        "qname_length_greater": 50,
+        "reason": "possibly_dga_domain"
+      },
+      {
+        "any": true,
+        "reason": "unknown_dns_domain"
+      }
+    ]
+  },
+
+  "syscall": {
+    "__comment": "SYSCALL policy",
+
+    "deny": [
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_INET", "AF_INET6", "AF_PACKET"],
+        "raw_only": true,
+        "uid_not": 0,
+        "reason": "unprivileged_raw_socket_creation"
+      },
+      {
+        "subtype": "MPROTECT_X",
+        "prot_any": ["PROT_EXEC"],
+        "uid_not": 0,
+        "reason": "nonroot_exec_memory"
+      },
+      {
+        "subtype": "MMAP_X",
+        "prot_any": ["PROT_EXEC"],
+        "flags_any": ["MAP_ANONYMOUS"],
+        "reason": "anonymous_executable_memory"
+      }
+    ],
+
+    "allow": [
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_NETLINK"],
+        "sock_type_any": ["SOCK_RAW"],
+        "reason": "system_netlink_socket"
+      },
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_UNIX"],
+        "sock_type_any": ["SOCK_STREAM", "SOCK_DGRAM"],
+        "reason": "normal_socket_creation",
+        "suppress_log": true
+      },
+      {
+        "subtype": "CLONE_FAMILY",
+        "flags_none": ["CLONE_NEWUSER"],
+        "reason": "normal_thread_creation",
+        "suppress_log": true
+      },
+      {
+        "subtype": "SETUID",
+        "uid_in": [0],
+        "reason": "root_uid_ops"
+      }
+    ],
+
+    "ml": [
+      {
+        "subtype": "PRIV_CHANGE",
+        "uid_not": 0,
+        "reason": "unprivileged_privilege_change"
+      },
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_INET", "AF_INET6", "AF_PACKET"],
+        "raw_only": true,
+        "reason": "raw_socket_creation_requires_review"
+      },
+      {
+        "subtype": "SOCKET_CREATE",
+        "sock_domain_any": ["AF_PACKET"],
+        "reason": "packet_socket_creation"
+      },
+      {
+        "subtype": "CLONE_FAMILY",
+        "flags_any": ["CLONE_NEWUSER"],
+        "reason": "possible_container_escape_or_ns_abuse"
+      },
+      {
+        "subtype": "UNSHARE",
+        "flags_any": ["CLONE_NEWNS", "CLONE_NEWNET"],
+        "reason": "namespace_isolation_attempt"
+      },
+      {
+        "subtype": "SETNS",
+        "nstype_not_in": ["CLONE_NEWNS", "CLONE_NEWNET", "CLONE_NEWUSER"],
+        "reason": "unusual_setns_call"
+      }
+    ]
+  },
+
+  "filesystem": {
+    "__comment": "Filesystem behaviors",
+
+    "deny": [
+      {
+        "path_prefix_any": ["/etc/passwd", "/etc/shadow", "/root/.ssh/"],
+        "reason": "sensitive_fs_access"
+      }
+    ],
+    "allow": [
+      {
+        "path_prefix_any": ["/var/log/", "/tmp/logs/"],
+        "reason": "log_files"
+      }
+    ],
+    "ml": [
+      {
+        "path_suffix_any": [".sh", ".py", ".bin"],
+        "reason": "script_or_binary_write"
+      }
+    ]
+  },
+
+  "memory": {
+    "__comment": "Memory modification patterns",
+
+    "deny": [
+      {
+        "prot_any": ["PROT_EXEC"],
+        "prot_all": ["PROT_WRITE", "PROT_EXEC"],
+        "reason": "writable_executable_memory"
+      }
+    ],
+
+    "allow": [
+      {
+        "prot_any": ["PROT_READ"],
+        "reason": "normal_memory_op"
+      }
+    ],
+
+    "ml": [
+      {
+        "prot_any": ["PROT_EXEC"],
+        "uid_not": 0,
+        "reason": "nonroot_exec_memory_op"
+      }
+    ]
+  },
+
+  "packet_in": {
+    "__comment": "Incoming packet rules",
+
+    "deny": [
+      {
+        "proto": "tcp",
+        "tcp_flags_any": ["syn"],
+        "dst_ports_any": [22, 23, 3389],
+        "reason": "incoming_connection_to_high_risk_port"
+      },
+      {
+        "proto": "tcp",
+        "src_ip_prefix_any": ["10.0.0.", "172.16.", "192.168."],
+        "tcp_flags_any": ["syn"],
+        "dst_ports_any": [445],
+        "reason": "internal_smb_connection_attempt"
+      }
+    ],
+
+    "allow": [
+      {
+        "proto": "tcp",
+        "dst_ports_any": [80, 443, 8080],
+        "reason": "incoming_web_traffic"
+      },
+      {
+        "proto": "udp",
+        "dst_ports_any": [53],
+        "reason": "incoming_dns_response"
+      }
+    ],
+
+    "ml": [
+      {
+        "proto": "tcp",
+        "tcp_flags_any": ["syn"],
+        "reason": "unknown_incoming_tcp_connection"
+      },
+      {
+        "proto": "udp",
+        "reason": "unknown_incoming_udp_packet"
+      }
+    ]
+  },
+
+  "behavior": {
+    "__comment": "High-level behavioral rules",
+
+    "deny": [
+      {
+        "trigger_sequence": ["EXEC:/tmp/*", "PACKET:tcp:445"],
+        "reason": "tmp_exec_followed_by_smb_scan"
+      }
+    ],
+
+    "allow": [
+      {
+        "trigger_sequence": ["EXEC:/usr/bin/python3", "DNS:*"],
+        "reason": "python_normal_usage"
+      }
+    ],
+
+    "ml": [
+      {
+        "sequence_length_greater": 3,
+        "reason": "complex_behavior"
+      }
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+<div class="min-h-screen relative overflow-hidden">
+  <div class="fixed inset-0 bg-[linear-gradient(to_right,rgba(139,92,246,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(139,92,246,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+
+  <div class="fixed top-0 right-0 w-[500px] h-[500px] bg-primary rounded-full opacity-10 blur-[150px]"></div>
+  <div class="fixed bottom-0 left-0 w-[500px] h-[500px] bg-accent rounded-full opacity-10 blur-[150px]"></div>
+
+  <header class="relative z-10 backdrop-blur-xl bg-card/40 border-b border-[#d946ef]/30">
+    <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-4">
+        <div class="relative">
+          <div class="absolute inset-0 bg-primary rounded-lg blur-lg opacity-50"></div>
+          <div class="relative bg-gradient-to-br from-primary to-secondary p-2 rounded-lg">
+            <lucide-icon name="shield" class="w-6 h-6 text-white"></lucide-icon>
+          </div>
+        </div>
+
+        <div>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+            Kernel Security Dashboard
+          </h1>
+          <p class="text-xs text-muted-foreground">
+            Real-time threat monitoring & system control
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2 px-3 py-1.5 bg-[#d946ef]/10 border border-[#d946ef]/30 rounded-lg">
+          <div class="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
+          <span class="text-sm text-foreground">System Active</span>
+        </div>
+
+        <app-button
+          variant="ghost"
+          size="sm"
+          (click)="logout()"
+          className="text-muted-foreground hover:text-foreground hover:bg-[#ff006e]/20"
+        >
+          <lucide-icon name="log-out" class="w-4 h-4"></lucide-icon>
+          Logout
+        </app-button>
+      </div>
+    </div>
+  </header>
+
+  <main class="relative z-10 container mx-auto px-6 py-6">
+    <app-metrics-panel></app-metrics-panel>
+
+    <div class="flex space-x-2 mb-6 backdrop-blur-xl bg-card/40 border border-[#d946ef]/30 rounded-xl p-1">
+      <button (click)="setTab('events')"
+        [ngClass]="activeTab === 'events'
+          ? 'bg-primary text-white shadow-[0_0_20px_rgba(217,70,239,0.4)]'
+          : 'text-muted-foreground hover:text-foreground hover:bg-[#d946ef]/10'"
+        class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all">
+        <lucide-icon name="activity" class="w-4 h-4"></lucide-icon>
+        <span>Events Monitor</span>
+      </button>
+
+      <button (click)="setTab('qml')"
+        [ngClass]="activeTab === 'qml'
+          ? 'bg-secondary text-white shadow-[0_0_20px_rgba(139,92,246,0.4)]'
+          : 'text-muted-foreground hover:text-foreground hover:bg-[#8b5cf6]/10'"
+        class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all">
+        <lucide-icon name="database"></lucide-icon>
+        <span>ML Model</span>
+      </button>
+
+      <button (click)="setTab('configs')"
+        [ngClass]="activeTab === 'configs'
+          ? 'bg-accent text-white shadow-[0_0_20px_rgba(6,182,212,0.4)]'
+          : 'text-muted-foreground hover:text-foreground hover:bg-[#06b6d4]/10'"
+        class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all">
+        <lucide-icon name="file-code"></lucide-icon>
+        <span>Configurations</span>
+      </button>
+
+      <button (click)="setTab('settings')"
+        [ngClass]="activeTab === 'settings'
+          ? 'bg-gradient-to-r from-primary to-secondary text-white shadow-[0_0_20px_rgba(217,70,239,0.4)]'
+          : 'text-muted-foreground hover:text-foreground hover:bg-[#d946ef]/10'"
+        class="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all">
+        <lucide-icon name="settings"></lucide-icon>
+        <span>Settings</span>
+      </button>
+    </div>
+
+    <div class="min-h-[600px]">
+      <app-events-panel *ngIf="activeTab === 'events'"></app-events-panel>
+      <app-qml-model-panel *ngIf="activeTab === 'qml'"></app-qml-model-panel>
+      <app-configs-panel *ngIf="activeTab === 'configs'"></app-configs-panel>
+      <app-settings-panel *ngIf="activeTab === 'settings'"></app-settings-panel>
+    </div>
+  </main>
+</div>

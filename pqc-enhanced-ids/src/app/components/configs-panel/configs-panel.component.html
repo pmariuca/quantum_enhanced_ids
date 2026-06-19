@@ -1,0 +1,95 @@
+<div class="backdrop-blur-xl bg-card/40 border border-[#d946ef]/30 rounded-xl p-6 shadow-[0_0_30px_rgba(217,70,239,0.2)]">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+        System Configurations
+      </h2>
+      <p class="text-sm text-muted-foreground mt-1">
+        Kernel security and firewall rules
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button (click)="handleReload()"
+        class="px-3 py-1.5 border border-[#8b5cf6]/40 rounded-lg hover:bg-[#8b5cf6]/20 flex items-center">
+        <lucide-icon name="refresh-cw" class="w-4 h-4 mr-2"></lucide-icon>
+        Reload
+      </button>
+
+      <button (click)="handleSave()"
+        class="px-3 py-1.5 bg-[#d946ef] text-white rounded-lg flex items-center">
+        <lucide-icon name="save" class="w-4 h-4 mr-2"></lucide-icon>
+        Save
+      </button>
+    </div>
+  </div>
+
+  <div class="flex space-x-2 w-[260px] mb-6 bg-muted/40 border border-border rounded-xl p-1">
+    <button (click)="activeTab = 'kernel'"
+      [ngClass]="activeTab === 'kernel'
+        ? 'bg-primary text-white'
+        : 'text-muted-foreground hover:bg-[#d946ef]/10'"
+      class="px-4 py-2 rounded-lg">
+      Kernel Config
+    </button>
+
+    <button (click)="activeTab = 'ebpf'"
+      [ngClass]="activeTab === 'ebpf'
+        ? 'bg-secondary text-white'
+        : 'text-muted-foreground hover:bg-[#8b5cf6]/10'"
+      class="px-4 py-2 rounded-lg">
+      eBPF Rules
+    </button>
+  </div>
+
+  <div *ngIf="activeTab === 'kernel'" class="mt-6">
+    <div class="bg-muted/40 border border-[#d946ef]/30 rounded-xl overflow-hidden">
+      <div class="flex justify-between px-4 py-3 bg-[#d946ef]/10 border-b border-[#d946ef]/30">
+        <div class="flex items-center gap-2">
+          <lucide-icon name="file-code" class="w-4 h-4 text-primary"></lucide-icon>
+          <span class="text-sm font-mono">kernel_security.conf</span>
+        </div>
+
+        <div class="flex gap-2">
+          <button (click)="handleExport('Kernel')" class="text-xs flex items-center">
+            <lucide-icon name="download" class="w-3 h-3 mr-1"></lucide-icon>
+            Export
+          </button>
+
+          <button (click)="handleCopy(kernelConfig, 'Kernel')" class="text-xs flex items-center">
+            <lucide-icon
+              [name]="copied === 'Kernel' ? 'checkicon' : 'copy'"
+              class="w-3 h-3 mr-1">
+            </lucide-icon>
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 overflow-x-auto">
+        <pre class="text-sm font-mono leading-relaxed">
+            {{ kernelConfig }}
+        </pre>
+      </div>
+
+    </div>
+  </div>
+
+  <div *ngIf="activeTab === 'ebpf'" class="mt-6">
+    <div class="bg-muted/40 border border-[#8b5cf6]/30 rounded-xl overflow-hidden">
+      <div class="flex justify-between px-4 py-3 bg-[#8b5cf6]/10 border-b border-[#8b5cf6]/30">
+        <span class="text-sm font-mono">ebpf_security.rules</span>
+        <button (click)="handleCopy(ebpfConfig, 'eBPF')">
+          Copy
+        </button>
+      </div>
+
+      <div class="p-4 overflow-x-auto">
+        <pre class="text-sm font-mono leading-relaxed">
+            {{ ebpfConfig }}
+        </pre>
+      </div>
+
+    </div>
+  </div>
+</div>

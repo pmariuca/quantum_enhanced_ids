@@ -1,0 +1,89 @@
+<div class="min-h-screen flex relative overflow-hidden">
+  <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(139,92,246,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(139,92,246,0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+
+  <div class="absolute top-20 left-20 w-96 h-96 bg-primary rounded-full opacity-20 blur-[120px] animate-pulse"></div>
+  <div class="absolute bottom-20 right-20 w-96 h-96 bg-accent rounded-full opacity-20 blur-[120px] animate-pulse" style="animation-delay: 1s;"></div>
+
+  <div class="flex-1 flex items-center justify-center p-8 relative z-10">
+    <div class="w-full max-w-md">
+      <div class="backdrop-blur-xl bg-card/40 border border-[#d946ef]/30 rounded-2xl p-8 shadow-[0_0_50px_rgba(217,70,239,0.3)]">
+        <div class="flex flex-col items-center mb-8">
+          <div class="relative">
+            <div class="absolute inset-0 bg-primary rounded-full blur-xl opacity-50"></div>
+            <div class="relative bg-gradient-to-br from-primary to-secondary p-4 rounded-full">
+              <lucide-icon name="shield" class="w-12 h-12 text-white"></lucide-icon>
+            </div>
+          </div>
+
+          <h1 class="mt-6 text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+            KSecurity
+          </h1>
+
+          <p class="text-muted-foreground mt-2">
+            Admin Control Panel
+          </p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 mb-6">
+          <div class="backdrop-blur-sm bg-[#d946ef]/10 border border-[#d946ef]/30 rounded-lg p-3 text-center">
+            <lucide-icon name="eye" class="w-5 h-5 text-primary mx-auto mb-1"></lucide-icon>
+            <p class="text-xs text-muted-foreground">Real-time</p>
+          </div>
+
+          <div class="backdrop-blur-sm bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 rounded-lg p-3 text-center">
+            <lucide-icon name="network" class="w-5 h-5 text-[#8b5cf6] mx-auto mb-1"></lucide-icon>
+            <p class="text-xs text-muted-foreground">eBPF</p>
+          </div>
+
+          <div class="backdrop-blur-sm bg-[#06b6d4]/10 border border-[#06b6d4]/30 rounded-lg p-3 text-center">
+            <lucide-icon name="cpu" class="w-5 h-5 text-[#06b6d4] mx-auto mb-1"></lucide-icon>
+            <p class="text-xs text-muted-foreground">ML Guard</p>
+          </div>
+        </div>
+
+        <form (submit)="handleLogin($event)" class="space-y-6">
+          <div class="space-y-2">
+            <app-label for="username">
+              Username
+            </app-label>
+            <input
+              type="text"
+              [(ngModel)]="username"
+              name="username"
+              class="w-full bg-[rgba(30,30,60,0.5)] border border-[#d946ef]/40 text-foreground placeholder:text-muted-foreground focus:border-primary transition-all p-3 rounded-xl outline-none"
+              placeholder="Enter your username"
+              required
+            />
+          </div>
+
+          <div class="space-y-2">
+            <app-label for="password">
+              Password
+            </app-label>
+            <input
+              type="password"
+              [(ngModel)]="password"
+              name="password"
+              class="w-full bg-[rgba(30,30,60,0.5)] border border-[#d946ef]/40 text-foreground placeholder:text-muted-foreground focus:border-primary transition-all p-3 rounded-xl outline-none"
+              placeholder="Enter your password"
+              required
+            />
+          </div>
+
+          <app-button
+            type="submit"
+            className="w-full mt-6 bg-gradient-to-r from-primary to-secondary text-white shadow-[0_0_30px_rgba(217,70,239,0.5)] hover:shadow-[0_0_50px_rgba(217,70,239,0.7)]"
+          >
+            <lucide-icon name="lock" class="w-4 h-4"></lucide-icon>
+            Secure Login
+        </app-button>
+        </form>
+      </div>
+
+      <div class="mt-4 text-center text-xs text-muted-foreground">
+        Version 1.0.0 • 2026
+      </div>
+
+    </div>
+  </div>
+</div>

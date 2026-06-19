@@ -1,0 +1,152 @@
+<div class="space-y-6">
+  <div class="backdrop-blur-xl bg-card/40 border border-primary/30 rounded-xl p-6 shadow-[0_0_30px_rgba(217,70,239,0.2)]">
+    <div class="flex items-center space-x-3 mb-6">
+      <div class="p-2 bg-[#d946ef]/20 rounded-lg">
+        <lucide-icon name="shield" class="w-5 h-5 text-primary"></lucide-icon>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-foreground">Core Security</h3>
+        <p class="text-sm text-muted-foreground">Essential kernel protection settings</p>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div class="pb-2">
+          <app-label class="text-foreground">Real-time Monitoring</app-label>
+          <p class="text-xs text-muted-foreground">Continuously monitor kernel events and threats</p>
+        </div>
+        <app-switch [checked]="settings.realtimeMonitoring" (click)="toggle('realtimeMonitoring')"></app-switch>
+      </div>
+
+      <app-separator></app-separator>
+
+      <div class="flex items-center justify-between">
+        <div class="pb-2">
+          <app-label class="text-foreground">Auto-Block Threats</app-label>
+          <p class="text-xs text-muted-foreground">Automatically block detected malicious activity</p>
+        </div>
+        <app-switch [checked]="settings.autoBlock" (click)="toggle('autoBlock')"></app-switch>
+      </div>
+
+      <app-separator></app-separator>
+
+      <div class="flex items-center justify-between">
+        <div class="pb-2">
+          <app-label class="text-foreground">Strict Mode</app-label>
+          <p class="text-xs text-muted-foreground">Enhanced security with stricter policies</p>
+        </div>
+        <app-switch [checked]="settings.strictMode" (click)="toggle('strictMode')"></app-switch>
+      </div>
+
+      <app-separator></app-separator>
+
+      <div class="flex items-center justify-between">
+        <div class="pb-2">
+          <app-label class="text-foreground">Kernel Hardening</app-label>
+          <p class="text-xs text-muted-foreground">Apply additional kernel security patches</p>
+        </div>
+        <app-switch [checked]="settings.kernelHardening" (click)="toggle('kernelHardening')"></app-switch>
+      </div>
+    </div>
+  </div>
+
+  <div class="backdrop-blur-xl bg-card/40 border border-secondary/30 rounded-xl p-6 shadow-[0_0_30px_rgba(139,92,246,0.2)]">
+    <div class="flex items-center space-x-3 mb-6">
+      <div class="p-2 bg-[#8b5cf6]/20 rounded-lg">
+        <lucide-icon name="eye" class="w-5 h-5 text-secondary"></lucide-icon>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-foreground">Monitoring & Detection</h3>
+        <p class="text-sm text-muted-foreground">Threat detection and analysis settings</p>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div class="pb-2">
+          <app-label class="text-foreground">Network Monitoring</app-label>
+          <p class="text-xs text-muted-foreground">Monitor network traffic for anomalies</p>
+        </div>
+        <app-switch [checked]="settings.networkMonitoring" (click)="toggle('networkMonitoring')"></app-switch>
+      </div>
+
+      <app-separator></app-separator>
+
+      <div>
+        <div class="flex items-center justify-between cursor-pointer hover:bg-muted/20 -mx-2 px-2 py-1 rounded-lg transition-colors"
+            (click)="toggleSection('memory')">
+
+          <div class="flex items-center space-x-2 flex-1">
+            <div class="pb-2 flex-1">
+              <app-label class="text-foreground">Memory Protection</app-label>
+              <p class="text-xs text-muted-foreground">Monitor and protect kernel memory space</p>
+            </div>
+
+            <lucide-icon 
+              [name]="expandedSections.memory ? 'chevron-down' : 'chevron-right'"
+              class="w-4 h-4 text-muted-foreground">
+            </lucide-icon>
+          </div>
+
+          <app-switch
+            [checked]="settings.memoryProtection"
+            (click)="$event.stopPropagation(); toggle('memoryProtection')">
+          </app-switch>
+        </div>
+
+        <div *ngIf="expandedSections.memory"
+            class="ml-6 mt-4 space-y-4 border-l-2 border-primary/30 pl-4">
+
+          <div class="flex items-center justify-between">
+            <div class="pb-2">
+              <app-label class="text-sm text-foreground">ASLR</app-label>
+              <p class="text-xs text-muted-foreground">Address Space Layout Randomization</p>
+            </div>
+            <app-switch [checked]="settings.memoryAslr" (click)="toggle('memoryAslr')"></app-switch>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div class="pb-2">
+              <app-label class="text-sm text-foreground">DEP</app-label>
+              <p class="text-xs text-muted-foreground">Data Execution Prevention</p>
+            </div>
+            <app-switch [checked]="settings.memoryDep" (click)="toggle('memoryDep')"></app-switch>
+          </div>
+        </div>
+      </div>
+
+      <app-separator></app-separator>
+
+      <div class="flex items-center justify-between">
+        <div class="pb-2">
+          <app-label class="text-foreground">Anomaly Detection</app-label>
+          <p class="text-xs text-muted-foreground">ML-powered behavior analysis</p>
+        </div>
+        <app-switch [checked]="settings.anomalyDetection" (click)="toggle('anomalyDetection')"></app-switch>
+      </div>
+
+      <app-separator></app-separator>
+
+      <div class="space-y-3">
+        <app-label class="text-foreground">Detection Sensitivity</app-label>
+
+        <div class="flex items-center space-x-4">
+          <app-slider [(value)]="sensitivity" class="flex-1"></app-slider>
+          <span class="text-sm font-mono text-foreground min-w-[3rem] text-right">
+            {{ sensitivity }}%
+          </span>
+        </div>
+
+        <p class="text-xs text-muted-foreground">
+          Higher sensitivity may increase false positives
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex justify-end gap-3">
+    <app-button variant="outline">Reset</app-button>
+    <app-button>Apply Settings</app-button>
+  </div>
+</div>

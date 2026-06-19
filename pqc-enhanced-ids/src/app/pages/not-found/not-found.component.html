@@ -1,0 +1,47 @@
+<div class="min-h-screen flex items-center justify-center relative overflow-hidden">
+
+  <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(139,92,246,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(139,92,246,0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+
+  <div class="absolute top-20 left-20 w-96 h-96 bg-destructive rounded-full opacity-20 blur-[120px]"></div>
+  <div class="absolute bottom-20 right-20 w-96 h-96 bg-primary rounded-full opacity-20 blur-[120px]"></div>
+
+  <div class="relative z-10 text-center">
+
+    <div class="flex justify-center mb-8">
+      <div class="relative">
+        <div class="absolute inset-0 bg-destructive rounded-full blur-xl opacity-50 animate-pulse"></div>
+        <div class="relative bg-gradient-to-br from-destructive to-primary p-6 rounded-full">
+          <lucide-icon name="shield-alert" class="w-16 h-16 text-white"></lucide-icon>
+        </div>
+      </div>
+    </div>
+
+    <h1 class="text-6xl font-bold mb-4 bg-gradient-to-r from-destructive via-primary to-secondary bg-clip-text text-transparent">
+      404
+    </h1>
+
+    <h2 class="text-2xl font-bold text-foreground mb-4">
+      Access Denied
+    </h2>
+
+    <p class="text-muted-foreground mb-8 max-w-md mx-auto">
+      The requested resource could not be found in the secure kernel space.
+      <br />
+      Please verify your access credentials.
+    </p>
+
+    <app-button
+      (click)="goHome()"
+      className="bg-gradient-to-r from-primary to-secondary hover:shadow-[0_0_30px_rgba(217,70,239,0.5)]"
+    >
+      <lucide-icon name="home" class="w-4 h-4"></lucide-icon>
+      Return to Login
+    </app-button>
+
+    <!-- Footer -->
+    <div class="mt-8 text-xs text-muted-foreground font-mono">
+      ERROR_CODE: KRN_404_NOT_FOUND
+    </div>
+
+  </div>
+</div>

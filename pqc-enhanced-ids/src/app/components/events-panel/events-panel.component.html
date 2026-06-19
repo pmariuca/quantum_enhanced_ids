@@ -1,0 +1,124 @@
+<div class="backdrop-blur-xl bg-card/40 border border-[#d946ef]/30 rounded-xl p-6 shadow-[0_0_30px_rgba(217,70,239,0.2)]">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+        Security Events Monitor
+      </h2>
+      <p class="text-sm text-muted-foreground mt-1">
+        Real-time kernel security event stream
+      </p>
+    </div>
+
+    <div class="flex items-center space-x-2">
+      <lucide-icon name="clock" class="w-4 h-4 text-muted-foreground"></lucide-icon>
+      <span class="text-sm text-muted-foreground">Live</span>
+      <div class="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
+    </div>
+  </div>
+
+  <div class="flex space-x-2 mb-6">
+    <button (click)="setFilter('all')"
+      [ngClass]="filter === 'all'
+        ? 'bg-primary text-white'
+        : 'bg-[#d946ef]/10 text-muted-foreground hover:bg-[#d946ef]/20'"
+      class="px-3 py-1.5 rounded-lg text-sm transition-all">
+      All Events
+    </button>
+
+    <button (click)="setFilter('critical')"
+      [ngClass]="filter === 'critical'
+        ? 'bg-destructive text-white'
+        : 'bg-[#ff006e]/10 text-muted-foreground hover:bg-[#ff006e]/20'"
+      class="px-3 py-1.5 rounded-lg text-sm transition-all">
+      Blocked
+    </button>
+
+    <button (click)="setFilter('warning')"
+      [ngClass]="filter === 'warning'
+        ? 'bg-yellow-400 text-white'
+        : 'bg-yellow-400/10 text-muted-foreground hover:bg-yellow-400/20'"
+      class="px-3 py-1.5 rounded-lg text-sm transition-all">
+      ML Check
+    </button>
+
+    <button (click)="setFilter('success')"
+      [ngClass]="filter === 'success'
+        ? 'bg-accent text-white'
+        : 'bg-[#06b6d4]/10 text-muted-foreground hover:bg-[#06b6d4]/20'"
+      class="px-3 py-1.5 rounded-lg text-sm transition-all">
+      OK
+    </button>
+  </div>
+
+  <app-scroll-area className="h-[500px] pr-4">
+    <div class="space-y-3">
+      <div *ngFor="let event of filteredEvents"
+        class="p-4 rounded-xl border backdrop-blur-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
+        [ngClass]="eventTypeConfig[getDisplayType(event)].border + ' ' + eventTypeConfig[getDisplayType(event)].bg">
+
+        <div class="flex items-start space-x-4">
+          <div class="p-2 rounded-lg"
+            [ngClass]="eventTypeConfig[getDisplayType(event)].bg">
+            <lucide-icon
+              [name]="eventTypeConfig[getDisplayType(event)].icon"
+              class="w-5 h-5"
+              [ngClass]="eventTypeConfig[getDisplayType(event)].color">
+            </lucide-icon>
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold text-foreground">
+                {{ event.title }}
+              </h3>
+
+              <app-badge [className]="eventTypeConfig[getDisplayType(event)].badge">
+                {{ eventTypeConfig[getDisplayType(event)].label }}
+              </app-badge>
+            </div>
+
+            <p class="text-sm text-muted-foreground mb-3">
+              {{ event.description }}
+            </p>
+
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">
+                Source: {{ event.source }}
+              </span>
+              <span class="text-muted-foreground font-mono">
+                {{ event.timestamp }}
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </app-scroll-area>
+
+  <div class="mt-6 flex items-end gap-3">
+    <div class="flex-1">
+      <label class="text-sm text-muted-foreground mb-2 block">
+        Log Source
+      </label>
+
+      <app-select
+        [options]="[
+          { label: 'Static Only', value: 'kernel' },
+          { label: 'Daemon Only', value: 'daemon' }
+        ]"
+        [(value)]="logSource"
+      >
+      </app-select>
+    </div>
+
+    <button
+      (click)="downloadLogs()"
+      class="bg-primary hover:bg-[#d946ef]/90 text-white px-4 py-2 rounded-lg shadow-[0_0_20px_rgba(217,70,239,0.3)] flex items-center"
+    >
+      <lucide-icon name="download" class="w-4 h-4 mr-2"></lucide-icon>
+      Download Logs
+    </button>
+  </div>
+</div>

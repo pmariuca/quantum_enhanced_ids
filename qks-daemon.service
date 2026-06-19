@@ -1,0 +1,34 @@
+[Unit]
+Description=Quantum-Enhanced IDS Daemon
+Documentation=man:qks-daemon(8)
+After=network-target.service
+Wants=network-target.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/qks
+ExecStart=/usr/local/bin/qks_daemon
+
+# Logging setup
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=qks-daemon
+
+# Auto-restart on failure
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=unlimited
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log /opt/qks
+
+[Install]
+WantedBy=multi-user.target

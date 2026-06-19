@@ -1,0 +1,11 @@
+{
+  "listen_addr": ":8080",
+  "events_jsonl": "../daemon/policy/events.jsonl",
+  "policy_json": "../daemon/policy/policy.json",
+  "policy_local_json": "../daemon/policy/policy.local.json",
+  "pid_file": "/run/qks_daemon.pid",
+  "jwt_secret": "8b591c8a373f892b42faf4e0cd89484fe172903b8540e1180fc330be5c5f7508",
+  "admin_username": "admin",
+  "admin_password_hash": "$2a$10$QtQ2jkIUj4pvZGRc5kVjlOVs2JsSMoPlmleTYUHXdbkwPjqligP8G",
+  "allowed_origin": "http://192.168.1.248:4200"
+}
