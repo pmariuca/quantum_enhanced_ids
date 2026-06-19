@@ -1,9 +1,0 @@
-7ec1e4ae989509a70bda5520df19cc86f0b5f411 029994ef343885c34985a4980e23f3e9dcaede7d Mariuca Pricop <mariucapricop@gmail.com> 1774535285 +0000	pull origin master: Fast-forward
-029994ef343885c34985a4980e23f3e9dcaede7d 8b9ca8ff00f3302b7ad21cad10752692a0a66609 Mariuca Pricop <mariucapricop@gmail.com> 1774536778 +0000	commit: Added netfilter hook for inbound and policy rules
-8b9ca8ff00f3302b7ad21cad10752692a0a66609 e55f73990611d758f3a3449659360a8e7fd9e9a8 Mariuca Pricop <mariucapricop@gmail.com> 1774601202 +0000	commit: Added hook for raw socket creation on syscalls
-9373a3dce1f30b0fdf88bbf96394c57aef28079b f7686a3129d270b94bb7bfd6ee1bc5abf7f00d52 Mariuca Pricop <mariucapricop@gmail.com> 1776073144 +0000	commit: Frontend + backend integration part 2
-f7686a3129d270b94bb7bfd6ee1bc5abf7f00d52 f21d79a13b0a7208bb27b8ce81a4fcbb1fa4b299 Mariuca Pricop <mariucapricop@gmail.com> 1776332536 +0000	pull --tags origin master: Fast-forward
-f21d79a13b0a7208bb27b8ce81a4fcbb1fa4b299 3267162cf43331ec26a3f16b0bc9e59a12c18304 Mariuca Pricop <mariucapricop@gmail.com> 1776332835 +0000	commit: Deleted unuseful logs and added some more supressing to spamming events
-3267162cf43331ec26a3f16b0bc9e59a12c18304 3267162cf43331ec26a3f16b0bc9e59a12c18304 Mariuca Pricop <mariucapricop@gmail.com> 1777289783 +0000	reset: moving to HEAD
-3267162cf43331ec26a3f16b0bc9e59a12c18304 0febbd5994f6c638150f59e1115244a8aa2fbc02 Mariuca Pricop <mariucapricop@gmail.com> 1777289802 +0000	pull --tags origin master: Fast-forward
-0febbd5994f6c638150f59e1115244a8aa2fbc02 0febbd5994f6c638150f59e1115244a8aa2fbc02 Mariuca Pricop <mariucapricop@gmail.com> 1777289812 +0000	reset: moving to HEAD
