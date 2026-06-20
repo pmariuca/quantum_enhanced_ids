@@ -1,0 +1,15 @@
+[Unit]
+Description=Quantum-Enhanced IDS ML Server
+After=network.target
+Before=qks-daemon.service
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/quantum_enhanced_ids/ml
+ExecStart=/home/admin/quantum_enhanced_ids/ml/venv/bin/python ml_server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
