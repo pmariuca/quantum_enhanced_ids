@@ -19,7 +19,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "DAEMON LOGS"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-sudo journalctl -u qks-daemon -e | grep -A 5 "id=$EVENT_ID" | head -20
+sudo journalctl -u qks-daemon --no-pager | grep -A 5 "id=$EVENT_ID" | head -20
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -31,7 +31,8 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "EVENT STORE (events.jsonl)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-grep "event_id\":$EVENT_ID" /opt/qks/policy/events.jsonl | python3 -m json.tool 2>/dev/null || grep "event_id\":$EVENT_ID" /opt/qks/policy/events.jsonl
+# Search for event_id in JSON (number, not quoted)
+grep "\"event_id\"[[:space:]]*:[[:space:]]*$EVENT_ID" /opt/qks/policy/events.jsonl | python3 -m json.tool 2>/dev/null || grep "\"event_id\"[[:space:]]*:[[:space:]]*$EVENT_ID" /opt/qks/policy/events.jsonl
 
 echo ""
 echo "✓ Trace complete for event ID: $EVENT_ID"

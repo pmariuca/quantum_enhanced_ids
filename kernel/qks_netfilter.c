@@ -158,6 +158,7 @@ static unsigned int qks_nf_hook(void *priv,
 
     msg.reserved1 = *((u8 *)tcph + 13);  // TCP flags byte
 
+    qks_log_event_in(msg.event_id, "PACKET");
     qks_send_msg(&msg);
     return NF_ACCEPT;
 }
@@ -329,6 +330,7 @@ static unsigned int qks_dns_hook(void *priv,
     strscpy(msg.dns_qname, qname, sizeof(msg.dns_qname));
     msg.dns_qtype = qtype;
 
+    qks_log_event_in(msg.event_id, "DNS");
     qks_send_msg(&msg);
 
     return NF_ACCEPT;

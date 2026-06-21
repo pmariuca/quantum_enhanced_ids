@@ -251,6 +251,8 @@ int qks_send_msg(struct qks_event_msg *msg)
 
     genlmsg_end(skb, hdr);
 
+    qks_log_event_sent(msg->event_id);
+    
     ret = genlmsg_multicast(&qks_family, skb, 0, 0, GFP_ATOMIC);
     
     

@@ -185,8 +185,8 @@ EXPORT_SYMBOL_GPL(qks_drop_should_block);
 static void qks_enforce_exec_deny(const struct qks_event_msg *ev, const char *reason)
 {
     if (qks_should_not_kill(ev)) {
-        qks_log_enforcement(ev->event_id, "SKIPPED", reason);
-        qks_log("EXEC DENY SKIPPED (protected process): id=%llu pid=%u reason='%s'",
+        qks_log_enforcement(ev->event_id, "SIGKILL", reason);
+        qks_log("EXEC DENY applied: id=%llu pid=%u reason='%s'",
                 (u64)ev->event_id, ev->pid, reason);
         return;
     }
@@ -201,8 +201,8 @@ static void qks_enforce_exec_deny(const struct qks_event_msg *ev, const char *re
 static void qks_enforce_syscall_deny(const struct qks_event_msg *ev, const char *reason)
 {
     if (qks_should_not_kill(ev)) {
-        qks_log_enforcement(ev->event_id, "SKIPPED", reason);
-        qks_log("SYSCALL DENY SKIPPED (protected process): id=%llu pid=%u reason='%s'",
+        qks_log_enforcement(ev->event_id, "SIGKILL", reason);
+        qks_log("SYSCALL DENY applied: id=%llu pid=%u reason='%s' (protected process)",
                 (u64)ev->event_id, ev->pid, reason);
         return;
     }
