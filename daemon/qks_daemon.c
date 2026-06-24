@@ -405,24 +405,19 @@ static void normalize_packet(const struct qks_event_msg *ev) {
     uint16_t sport = ntohs(ev->packet_src_port);
     uint16_t dport = ntohs(ev->packet_dst_port);
 
-    // ---- Print normalized packet metadata ----
-    printf("    PACKET: %s:%u -> %s:%u\n", src_ip, sport, dst_ip, dport);
-    printf("        proto = %u (%s)\n", ev->packet_protocol, proto_name(ev->packet_protocol));
-    printf("        len   = %u bytes\n", ev->packet_len);
-
     // ---- TCP flags (valid only for TCP) ----
-    if (ev->event_type == QKS_EVENT_PACKET &&
-        ev->packet_protocol == IPPROTO_TCP)
-    {
-        printf("    TCP flags = 0x%02x [", ev->reserved1);
-        if (ev->reserved1 & TH_FIN) printf(" FIN");
-        if (ev->reserved1 & TH_SYN) printf(" SYN");
-        if (ev->reserved1 & TH_RST) printf(" RST");
-        if (ev->reserved1 & TH_PUSH) printf(" PSH");
-        if (ev->reserved1 & TH_ACK) printf(" ACK");
-        if (ev->reserved1 & TH_URG) printf(" URG");
-        printf(" ]\n");
-    }
+    // if (ev->event_type == QKS_EVENT_PACKET &&
+    //     ev->packet_protocol == IPPROTO_TCP)
+    // {
+    //     printf("    TCP flags = 0x%02x [", ev->reserved1);
+    //     if (ev->reserved1 & TH_FIN) printf(" FIN");
+    //     if (ev->reserved1 & TH_SYN) printf(" SYN");
+    //     if (ev->reserved1 & TH_RST) printf(" RST");
+    //     if (ev->reserved1 & TH_PUSH) printf(" PSH");
+    //     if (ev->reserved1 & TH_ACK) printf(" ACK");
+    //     if (ev->reserved1 & TH_URG) printf(" URG");
+    //     printf(" ]\n");
+    // }
 
     // ---- Process information ----
     printf("        pkt_pid = %u\n", ev->pkt_pid);
@@ -621,7 +616,7 @@ int main(void) {
     }
     qks_policy_merge_local("policy/policy.local.json");
 
-    ml_client_init("/tmp/qks_ml.sock");
+    ml_client_init("/run/qks/qks_ml.sock");
 
     struct nl_sock *sk = nl_socket_alloc();
     if (!sk) {

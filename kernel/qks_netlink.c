@@ -233,6 +233,9 @@ int qks_send_msg(struct qks_event_msg *msg)
     if (!msg)
         return -EINVAL;
 
+    /* Log immediately when we have a valid message before attempting to build netlink msg */
+    qks_log_event_sent(msg->event_id);
+
     skb = genlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
     if (!skb)
         return -ENOMEM;
@@ -250,19 +253,22 @@ int qks_send_msg(struct qks_event_msg *msg)
     }
 
     genlmsg_end(skb, hdr);
-
-    qks_log_event_sent(msg->event_id);
     
+    qks_log("[KERNEL] Forwarding event id=%llu type=%u to daemon via netlink",
+            (u64)msg->event_id, msg->event_type);
+
     ret = genlmsg_multicast(&qks_family, skb, 0, 0, GFP_ATOMIC);
     
     
     if (ret == -ESRCH) { /* no listeners */
-        qks_log("FALLBACK: no listeners -> ALLOW id=%llu", msg->event_id);
+        qks_log("[KERNEL] FALLBACK: no daemon listeners -> ALLOW id=%llu", (u64)msg->event_id);
         return 0;
     }
 
-    if (ret)
+    if (ret) {
+        qks_log("[KERNEL] Netlink multicast failed: ret=%d", ret);
         return ret;
+    }
 
     qks_store_pending_event(msg);
     return 0;

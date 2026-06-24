@@ -6,6 +6,8 @@ Before=qks-daemon.service
 [Service]
 Type=simple
 User=admin
+RuntimeDirectory=qks
+RuntimeDirectoryMode=0755
 WorkingDirectory=/home/admin/quantum_enhanced_ids/ml
 ExecStart=/home/admin/quantum_enhanced_ids/ml/venv/bin/python ml_server.py
 Restart=on-failure

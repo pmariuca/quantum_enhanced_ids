@@ -115,13 +115,24 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
     const types: EventType[] = [];
     const isMlAnomalous = ev.ml_prob !== undefined && ev.ml_prob > 0.5;
     
-    if (ev.policy === 'DENY') {
+    // Determine actual verdict from policy and reason
+    let actualVerdict = ev.policy;
+    if (ev.policy === 'UNKNOWN' && ev.reason) {
+      // For ML-based decisions, infer verdict from reason and ml_prob
+      if (ev.reason.includes('ml_anomaly') || (isMlAnomalous)) {
+        actualVerdict = 'DENY';
+      } else if (ev.reason.includes('ml_benign') || ev.reason.includes('default_ml')) {
+        actualVerdict = 'ALLOW';
+      }
+    }
+    
+    if (actualVerdict === 'DENY') {
       types.push('critical');
     }
     if (isMlAnomalous) {
       types.push('warning');
     }
-    if (ev.policy === 'ALLOW' && !isMlAnomalous) {
+    if (actualVerdict === 'ALLOW' && !isMlAnomalous) {
       types.push('success');
     }
     if (types.length === 0) {
@@ -136,7 +147,7 @@ export class EventsPanelComponent implements OnInit, OnDestroy {
       id: ev.event_id.toString(),
       types,
       title: `${ev.type} event (ID: ${ev.event_id})`,
-      description: `Policy: ${ev.policy}, Reason: ${ev.reason}${mlNote}`,
+      description: `Policy: ${actualVerdict}, Reason: ${ev.reason}${mlNote}`,
       timestamp: ev.ts_daemon,
       source: 'Kernel Monitor'
     };

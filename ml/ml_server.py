@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 from train_qml import DualEncoderQML, SYSCALL_FEATURES, NETWORK_FEATURES
 
-SOCKET_PATH = "/tmp/qks_ml.sock"
+SOCKET_PATH = "/run/qks/qks_ml.sock"
 MODEL_PATH  = Path("models/qml_dual_encoder/best_model.pt")
 THRESHOLD   = 0.5
 
